@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
 const T = {
@@ -574,6 +575,7 @@ export default function SecondBrain() {
         {tab==="whisperer" && <WhispererTab theme={theme} isDark={isDark} lang={lang} notes={notes} setNotes={setNotes} />}
         {tab==="budget" && <BudgetTab theme={theme} isDark={isDark} lang={lang} />}
       </div>
+      <Analytics />
     </div>
   );
 }
