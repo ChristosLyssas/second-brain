@@ -48,6 +48,8 @@ export const goalsDB = {
       progress: g.progress,
       due: g.due,
       tasks: g.tasks,
+      // undefined if the column doesn't exist yet → never sent back, so nothing breaks before the migration
+      targetAmount: g.target_amount,
     }))
   },
 
@@ -63,6 +65,7 @@ export const goalsDB = {
         progress: goal.progress ?? 0,
         due:      goal.due ?? '',
         tasks:    goal.tasks ?? [],
+        ...(goal.targetAmount != null ? { target_amount: goal.targetAmount } : {}),
       })
       .select()
       .single()
@@ -79,6 +82,7 @@ export const goalsDB = {
     if (patch.progress !== undefined) dbPatch.progress = patch.progress
     if (patch.due      !== undefined) dbPatch.due      = patch.due
     if (patch.tasks    !== undefined) dbPatch.tasks    = patch.tasks
+    if (patch.targetAmount !== undefined) dbPatch.target_amount = patch.targetAmount
 
     const { error } = await supabase
       .from('goals')
@@ -112,6 +116,7 @@ export const notesDB = {
       tags:      n.tags,
       pinned:    n.pinned,
       date:      new Date(n.created_at).toLocaleDateString('el-GR', { day:'numeric', month:'short', year:'numeric' }),
+      createdAt: n.created_at, // the UI formats this in the current language
     }))
   },
 
@@ -128,7 +133,7 @@ export const notesDB = {
       .select()
       .single()
     if (error) throw error
-    return { ...note, id: data.id }
+    return { ...note, id: data.id, createdAt: data.created_at }
   },
 
   async update(noteId, patch) {
@@ -170,6 +175,7 @@ export const txnsDB = {
       type:   t.type,
       catIdx: t.cat_idx,
       date:   t.txn_date,
+      createdAt: t.created_at,
     }))
   },
 
@@ -187,7 +193,24 @@ export const txnsDB = {
       .select()
       .single()
     if (error) throw error
-    return { ...txn, id: data.id }
+    return { ...txn, id: data.id, createdAt: data.created_at }
+  },
+
+  async update(txnId, patch) {
+    const dbPatch = {}
+    if (patch.label  !== undefined) dbPatch.label    = patch.label
+    if (patch.amount !== undefined) dbPatch.amount   = patch.amount
+    if (patch.type   !== undefined) dbPatch.type     = patch.type
+    if (patch.catIdx !== undefined) dbPatch.cat_idx  = patch.catIdx
+    if (patch.date   !== undefined) dbPatch.txn_date = patch.date
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(dbPatch)
+      .eq('id', txnId)
+      .select()
+    if (error) throw error
+    // RLS silently filters rows it doesn't allow — surface that instead of failing quietly
+    if (!data || data.length === 0) throw new Error('Transaction update affected 0 rows (check UPDATE policy on "transactions")')
   },
 
   async delete(txnId) {

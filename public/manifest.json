@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "SecondBrain",
+  "short_name": "SecondBrain",
+  "description": "Goals, notes, budget and calendar in one place",
+  "lang": "el",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080f1a",
+  "theme_color": "#080f1a",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
