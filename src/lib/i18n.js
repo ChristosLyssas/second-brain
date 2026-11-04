@@ -22,7 +22,7 @@ export const T = {
     targetLabel:"Στόχος", savedLabel:"Αποταμιεύτηκαν", leftoverLabel:"Υπόλοιπο", freeLabel:"Ελεύθερα για ξόδεμα",
     goalReached:"✓ Ο στόχος επιτεύχθηκε", toGoal:(x)=>`Λείπουν ${x} για τον στόχο`,
     afterGoal:(x)=>`αφού βάλεις ${x} στον στόχο`, notEnoughLeft:"Το υπόλοιπο δεν φτάνει για τον στόχο",
-    ofIncome:(p)=>`${p}% του εισοδήματος`, leftPct:(p)=>`${p}% περισσεύει`,
+    ofIncome:(p)=>`${p}% των εσόδων`, leftPct:(p)=>`${p}% μένει`,
     whereMoneyWent:"Πού πήγε το εισόδημα", variableLabel:"Έξοδα", leftLabel:"Περισσεύουν", overspent:(x)=>`Υπέρβαση κατά ${x}`,
     total:"Σύνολο", viewBars:"Μπάρες", viewDonut:"Γράφημα",
     sortLabel:"Σειρά", sortOpts:{ amountDesc:"Ποσό ↓", amountAsc:"Ποσό ↑", alpha:"Α–Ω", custom:"Δική μου σειρά" },

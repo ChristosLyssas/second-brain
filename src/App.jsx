@@ -160,7 +160,7 @@ function SecondBrain({ session }) {
         /* ── MOBILE ── */
         @media (max-width:640px) {
           .desktop-tabs { display:none !important; }
-          .hdr-extra    { display:none !important; }   /* language, theme, sign out → Profile tab on phones */
+          .hdr-extra    { display:none !important; }   /* language, theme, profile, sign out → "Me" tab on phones */
           .mobile-nav   { display:flex !important; }
           .hpad { padding:14px 16px 0 !important; }
           .cpad { padding:10px 14px 0 !important; }
@@ -193,7 +193,7 @@ function SecondBrain({ session }) {
       )}
 
       {/* ── HEADER ── */}
-      <div className="hpad" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, flexShrink:0 }}>
+      <div className="hpad" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"nowrap", gap:8, flexShrink:0 }}>
         <div>
           <div style={{ fontSize:fz(11), letterSpacing:"0.12em", color:theme.textMuted, marginBottom:2, textTransform:"uppercase", fontWeight:500 }}>
             {new Date().toLocaleDateString(t.dateLocale,{ weekday:"long", day:"numeric", month:"long", year:"numeric" })}
@@ -216,7 +216,7 @@ function SecondBrain({ session }) {
           </button>
 
           {/* Profile button */}
-          <button onClick={()=>setTab("profile")} style={{ width:32, height:32, borderRadius:"50%", background:tab==="profile"?"#2563eb":theme.input, border:`2px solid ${tab==="profile"?"#2563eb":theme.borderStrong}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:fz(14), transition:"all 0.18s", flexShrink:0, overflow:"hidden" }}>
+          <button className="hdr-extra" onClick={()=>setTab("profile")} style={{ width:32, height:32, borderRadius:"50%", background:tab==="profile"?"#2563eb":theme.input, border:`2px solid ${tab==="profile"?"#2563eb":theme.borderStrong}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:fz(14), transition:"all 0.18s", flexShrink:0, overflow:"hidden" }}>
             {session.user.user_metadata?.avatar_url
               ? <img src={session.user.user_metadata.avatar_url} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
               : "👤"}
