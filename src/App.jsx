@@ -223,8 +223,9 @@ function SecondBrain({ session }) {
           /* Goals: the detail panel opens full-screen instead of squeezing next to the cards */
           .goals-split    { grid-template-columns:1fr !important; }
           /* Budget toolbar: chips scroll sideways on one line; sort + new share a full-width row */
-          .txn-toolbar    { flex-direction:column; align-items:stretch !important; gap:8px !important; }
-          .txn-chips      { flex-wrap:nowrap !important; overflow-x:auto; scrollbar-width:none; }
+          /* nowrap matters: a wrapping column sizes its line to the widest child (all chips) → overflow */
+          .txn-toolbar    { flex-direction:column; flex-wrap:nowrap !important; align-items:stretch !important; gap:8px !important; min-width:0; max-width:100%; }
+          .txn-chips      { flex-wrap:nowrap !important; overflow-x:auto; scrollbar-width:none; min-width:0; max-width:100%; }
           .txn-chips > *  { flex-shrink:0; }
           /* centred when they fit; auto margins (unlike justify-content:center) never cut off the first chip when they overflow */
           .txn-chips > :first-child { margin-left:auto; }
