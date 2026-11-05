@@ -10,6 +10,10 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env')
 }
 
+// Opened from a "reset password" email? (read before the client cleans up the URL)
+export const isRecoveryLink = typeof window !== 'undefined' &&
+  (/[?&]reset=1\b/.test(window.location.search) || /type=recovery/.test(window.location.hash))
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ─── Auth helpers ─────────────────────────────────────────────
@@ -21,6 +25,13 @@ export const auth = {
     supabase.auth.signInWithPassword({ email, password }),
 
   signOut: () => supabase.auth.signOut(),
+
+  // Email with a link back to the app (?reset=1 -> "set new password" screen).
+  // The URL must be listed in Supabase -> Authentication -> URL Configuration -> Redirect URLs.
+  resetPassword: (email) =>
+    supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/?reset=1` }),
+
+  updatePassword: (password) => supabase.auth.updateUser({ password }),
 
   getSession: () => supabase.auth.getSession(),
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { T } from "../lib/i18n";
 import { CAT_COLORS, fz, INCOME_CAT, OTHER_CAT, SAVINGS_CAT, SAVINGS_COLOR, isSaving, NUM_FONT, lsGet, lsSet, fmtMoney, toISO, parseTxnDate } from "../lib/helpers";
-import { Donut } from "../components/ui";
+import { Donut, CountUp, EmptyState } from "../components/ui";
+import { Icon, CatIcon } from "../components/Icon";
 
 // ─── BUDGET TAB ───────────────────────────────────────────────────────────────
 export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsTarget, setSavingsTarget }) {
@@ -22,6 +23,8 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
   const [sortMode, setSortModeRaw] = useState(()=>lsGet("sb_cat_sort","amountDesc"));
   const [customOrder, setCustomOrderRaw] = useState(()=>{ try { return JSON.parse(localStorage.getItem("sb_cat_order"))||[]; } catch { return []; } });
   const [activeCat, setActiveCat] = useState(null);
+  const [txnSort, setTxnSortRaw] = useState(()=>lsGet("sb_txn_sort","dateDesc"));
+  const setTxnSort = (v) => { setTxnSortRaw(v); lsSet("sb_txn_sort", v); };
   const [undo, setUndo] = useState(null);
   const undoTimer = useRef(null);
   useEffect(()=>()=>clearTimeout(undoTimer.current),[]);
@@ -79,7 +82,11 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
     fixed:   tx=>tx.type==="fixed"   && !isSaving(tx),
     saving:  isSaving,
   };
-  const filtered = filterFns[filterType] ? monthTxns.filter(filterFns[filterType]) : monthTxns;
+  const txnSorters = {
+    dateDesc:(a,b)=>b._d-a._d, dateAsc:(a,b)=>a._d-b._d,
+    amountDesc:(a,b)=>Math.abs(b.amount)-Math.abs(a.amount), amountAsc:(a,b)=>Math.abs(a.amount)-Math.abs(b.amount),
+  };
+  const filtered = (filterFns[filterType] ? monthTxns.filter(filterFns[filterType]) : [...monthTxns]).sort(txnSorters[txnSort]||txnSorters.dateDesc);
 
   // ── Category breakdown (keyed by catIdx so the order survives a language switch) ──
   const catTotals = {};
@@ -113,7 +120,7 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
     { key:"fixed", label:t.fixed,         value:fixedTotal,           color:"#f87171" },
     { key:"var",   label:t.variableLabel, value:varExpenses,          color:"#fb923c" },
     { key:"save",  label:t.savingOpt,     value:savedTotal,           color:SAVINGS_COLOR },
-    { key:"left",  label:t.leftLabel,     value:Math.max(0,balance),  color:"#a78bfa" },
+    { key:"left",  label:t.leftLabel,     value:Math.max(0,balance),  color:"#64748b" },
   ];
 
   // ── Add / edit / delete ─────────────────────────────────────────────────────
@@ -167,63 +174,72 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
 
   // Rendered via a function call (not <Component/>) so inputs keep focus while typing
   const renderForm = () => (
-    <div style={{ background:theme.surface, border:`1px solid ${editingId!=null?"#60a5fa66":theme.border}`, borderRadius:12, padding:14, marginBottom:7, animation:"slideDown 0.2s ease", flexShrink:0 }}>
-      {editingId!=null && <div style={{ ...sectionTitle, color:"#60a5fa", marginBottom:10 }}>✏️ {t.editTxn}</div>}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-        <input autoFocus placeholder={t.descPlaceholder} value={draft.label} onChange={e=>setDraft({ ...draft, label:e.target.value })} onKeyDown={e=>e.key==="Enter"&&submitDraft()} style={{ ...iStyle, gridColumn:"1/-1" }}/>
+    <div style={{ background:theme.surface, border:`1px solid ${editingId!=null?"#60a5fa66":theme.border}`, borderRadius:12, padding:10, marginBottom:6, animation:"slideDown 0.2s ease", flexShrink:0 }}>
+      {editingId!=null && <div style={{ ...sectionTitle, color:"#60a5fa", marginBottom:10 }}><Icon name="edit" size={12}/> {t.editTxn}</div>}
+      <div className="txn-form">
+        <input autoFocus className="f-desc" placeholder={t.descPlaceholder} value={draft.label} onChange={e=>setDraft({ ...draft, label:e.target.value })} onKeyDown={e=>e.key==="Enter"&&submitDraft()} style={iStyle}/>
         <input placeholder={t.amountPlaceholder} type="number" inputMode="decimal" min="0" step="0.01" value={draft.amount} onChange={e=>setDraft({ ...draft, amount:e.target.value })} onKeyDown={e=>e.key==="Enter"&&submitDraft()} style={iStyle}/>
         <select value={draft.type} onChange={e=>changeType(e.target.value)} style={iStyle}>
           <option value="expense">{t.expenseOpt}</option>
           <option value="income">{t.incomeOpt}</option>
           <option value="fixed">{t.fixedOpt}</option>
-          <option value="saving">🏦 {t.savingOpt}</option>
+          <option value="saving">{t.savingOpt}</option>
         </select>
         <select value={draft.catIdx} disabled={draft.type==="saving"} onChange={e=>{ const catIdx=parseInt(e.target.value); setDraft({ ...draft, catIdx, type:catIdx===SAVINGS_CAT?"saving":draft.type }); }} style={{ ...iStyle, opacity:draft.type==="saving"?0.6:1 }}>
-          {t.budgetCategories.map((c,i)=><option key={i} value={i}>{t.catEmoji[c]} {c}</option>)}
+          {t.budgetCategories.map((c,i)=><option key={i} value={i}>{c}</option>)}
         </select>
         <input type="date" value={draft.date} onChange={e=>setDraft({ ...draft, date:e.target.value })} style={{ ...iStyle, colorScheme:isDark?"dark":"light" }}/>
-      </div>
-      {formError && <div style={{ fontSize:fz(12), color:"#f87171", marginTop:8 }}>{formError}</div>}
-      <div style={{ display:"flex", gap:8, marginTop:10 }}>
-        <button onClick={submitDraft} style={{ flex:1, padding:"9px", background:editingId!=null?"#2563eb":"#16a34a", border:"none", borderRadius:8, color:"#fff", fontSize:fz(13), fontFamily:"inherit", fontWeight:600 }}>{editingId!=null?t.saveEdit:t.add}</button>
+      <div className="f-actions">
+        <button onClick={submitDraft} style={{ flex:1, padding:"9px 18px", whiteSpace:"nowrap", background:"#2563eb", border:"none", borderRadius:8, color:"#fff", fontSize:fz(13), fontFamily:"inherit", fontWeight:600 }}>{editingId!=null?t.saveEdit:t.add}</button>
         <button onClick={closeForm} style={{ padding:"9px 14px", background:theme.input, border:`1px solid ${theme.borderStrong}`, borderRadius:8, color:theme.textMuted, fontSize:fz(13), fontFamily:"inherit" }}>{t.cancel}</button>
       </div>
+      </div>
+      {formError && <div style={{ fontSize:fz(12), color:"#f87171", marginTop:8 }}>{formError}</div>}
     </div>
   );
 
   // ── Transactions panel content ───────────────────────────────────────────────
   const TransactionsPanel = (
     <div className="budget-fill" style={{ display:"flex", flexDirection:"column", gap:10, height:"100%", minHeight:0 }}>
-      <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", flexShrink:0 }}>
+      <div className="txn-toolbar" style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", flexShrink:0 }}>
+        <div className="txn-chips" style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
         {[["all",t.allFilter],["income",t.incomeFilter],["expense",t.expenseFilter],["fixed",t.fixedFilter],["saving",t.savingsFilter]].map(([v,l])=>{
           const clr=v==="income"?"#34d399":v==="expense"?"#fb923c":v==="fixed"?"#f87171":v==="saving"?SAVINGS_COLOR:"#60a5fa";
           return <button key={v} onClick={()=>setFilterType(v)} style={{ padding:"5px 12px", borderRadius:20, border:`1px solid ${filterType===v?clr:theme.border}`, background:filterType===v?clr+"20":"transparent", color:filterType===v?clr:theme.textMuted, fontSize:fz(12), fontFamily:"inherit", cursor:"pointer", transition:"all 0.15s" }}>{l}</button>;
         })}
-        <button onClick={openAdd} style={{ marginLeft:"auto", padding:"5px 14px", borderRadius:20, border:`1px solid ${isDark?"#15803d":"#22c55e"}`, background:isDark?"#14532d":"#f0fdf4", color:isDark?"#86efac":"#16a34a", fontSize:fz(12), fontFamily:"inherit", cursor:"pointer", fontWeight:500 }}>{t.newTransaction}</button>
+        </div>
+        <div className="txn-actions" style={{ marginLeft:"auto", display:"flex", gap:6, alignItems:"center" }}>
+        <select className="sort-select" aria-label={t.sortLabel} value={txnSort} onChange={e=>setTxnSort(e.target.value)} style={{ background:theme.input, border:`1px solid ${theme.border}`, borderRadius:20, color:theme.text, fontSize:fz(12), padding:"5px 10px", fontFamily:"inherit" }}>
+          {Object.entries(t.txnSortOpts).map(([k,l])=><option key={k} value={k}>{l}</option>)}
+        </select>
+        <button onClick={openAdd} style={{ padding:"5px 14px", borderRadius:20, border:`1px solid ${isDark?"#1d4ed8":"#3b82f6"}`, background:isDark?"#1e3a8a":"#eff6ff", color:isDark?"#93c5fd":"#2563eb", fontSize:fz(12), fontFamily:"inherit", cursor:"pointer", fontWeight:500 }}>{t.newTransaction}</button>
+        </div>
       </div>
       {adding && renderForm()}
       <div className="budget-scroll" style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain" }}>
         {filtered.map((txn)=>{
           if (txn.id===editingId) return <div key={txn.id}>{renderForm()}</div>;
-          const cat=t.budgetCategories[txn.catIdx]||"", color=CAT_COLORS[cat]||"#94a3b8", emoji=t.catEmoji[cat]||"💸";
+          const cat=t.budgetCategories[txn.catIdx]||"", color=CAT_COLORS[cat]||"#94a3b8";
           const isSav=isSaving(txn), isFixed=txn.type==="fixed" && !isSav;
           return (
-            <div key={txn.id} className="note-card txn-row" onClick={()=>openEdit(txn)} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 14px", background:theme.surface, border:`1px solid ${isFixed?"#f8717130":theme.border}`, borderRadius:12, marginBottom:7, cursor:"pointer" }}>
-              <div style={{ width:36, height:36, borderRadius:9, background:color+"20", display:"flex", alignItems:"center", justifyContent:"center", fontSize:fz(16), flexShrink:0 }}>{emoji}</div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <div key={txn.id} className="note-card txn-row" onClick={()=>openEdit(txn)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:theme.surface, boxShadow:theme.shadow, border:`1px solid ${isFixed?"#f8717130":theme.border}`, borderRadius:12, marginBottom:6, cursor:"pointer" }}>
+              <div style={{ width:32, height:32, borderRadius:9, background:color+"20", display:"flex", alignItems:"center", justifyContent:"center", fontSize:fz(14), flexShrink:0 }}><CatIcon idx={txn.catIdx} size={16} color={color}/></div>
+              <div style={{ flex:1, minWidth:0, display:"flex", alignItems:"baseline", flexWrap:"wrap", columnGap:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0, maxWidth:"100%" }}>
                   <div style={{ fontSize:fz(14), fontWeight:500, color:theme.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{txn.label}</div>
-                  {isFixed && <span style={{ fontSize:fz(10), padding:"1px 5px", borderRadius:5, background:"#f8717122", color:"#f87171", fontWeight:600, flexShrink:0 }}>🔒</span>}
+                  {isFixed && <span style={{ fontSize:fz(10), padding:"1px 5px", borderRadius:5, background:"#f8717122", color:"#f87171", fontWeight:600, flexShrink:0, display:"inline-flex" }}><Icon name="lock" size={11}/></span>}
                 </div>
-                <div style={{ fontSize:fz(12), color:theme.textMuted, marginTop:1 }}>{cat} · {txn._d.toLocaleDateString(locale,{ day:"numeric", month:"short" })}</div>
+                <div style={{ fontSize:fz(12), color:theme.textMuted, whiteSpace:"nowrap" }}>{cat} · {txn._d.toLocaleDateString(locale,{ day:"numeric", month:"short" })}</div>
               </div>
               <div style={{ fontSize:fz(15), fontWeight:500, color:txn.type==="income"?"#34d399":isSav?SAVINGS_COLOR:isFixed?"#f87171":"#fb923c", fontFamily:NUM_FONT, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", flexShrink:0 }}>{txn.type==="income"?"+":""}{money(txn.amount)}</div>
-              <button className="row-action" aria-label={t.edit} onClick={e=>{ e.stopPropagation(); openEdit(txn); }} style={{ background:"none", border:"none", color:theme.textMuted, fontSize:fz(13), padding:"2px 4px", flexShrink:0 }}>✏️</button>
-              <button className="row-action" aria-label={t.deleteGoal} onClick={e=>{ e.stopPropagation(); deleteTxn(txn); }} style={{ background:"none", border:"none", color:"#f87171", fontSize:fz(16), padding:"2px 4px", flexShrink:0 }}>×</button>
+              <button className="row-action" aria-label={t.edit} onClick={e=>{ e.stopPropagation(); openEdit(txn); }} style={{ background:"none", border:"none", color:theme.textMuted, fontSize:fz(13), padding:"2px 4px", flexShrink:0, display:"inline-flex" }}><Icon name="edit" size={14}/></button>
+              <button className="row-action" aria-label={t.deleteGoal} onClick={e=>{ e.stopPropagation(); deleteTxn(txn); }} style={{ background:"none", border:"none", color:"#f87171", fontSize:fz(16), padding:"2px 4px", flexShrink:0, display:"inline-flex" }}><Icon name="close" size={15}/></button>
             </div>
           );
         })}
-        {filtered.length===0 && <div style={{ textAlign:"center", padding:"32px 0", color:theme.textMuted, fontSize:fz(13)}}>{t.noTxnsMonth}</div>}
+        {filtered.length===0 && (monthTxns.length===0
+          ? <EmptyState theme={theme} icon="transactions" title={t.noTxnsMonth} hint={t.emptyTxnsHint} action={adding?null:t.newTransaction.replace(/^\+\s*/,"")} onAction={openAdd}/>
+          : <EmptyState theme={theme} compact icon="search" title={t.noTxnsMonth} hint={t.noResultsHint}/>)}
       </div>
     </div>
   );
@@ -231,7 +247,7 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
   // ── Breakdown panel content ──────────────────────────────────────────────────
   const BreakdownPanel = (
     <div className="budget-scroll budget-fill" style={{ overflowY:"auto", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain", height:"100%" }}>
-      <div style={{ background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:14, padding:18 }}>
+      <div style={{ background:theme.surface, border:`1px solid ${theme.border}`, boxShadow:theme.shadow, borderRadius:14, padding:18 }}>
         {/* Where income went — one stacked bar */}
         {income>0 && (
           <div style={{ marginBottom:16 }}>
@@ -249,13 +265,13 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
                 </span>
               ))}
             </div>
-            {balance<0 && <div style={{ fontSize:fz(11), color:"#f87171", marginTop:6 }}>⚠️ {t.overspent(money(-balance))}</div>}
+            {balance<0 && <div style={{ fontSize:fz(11), color:"#f87171", marginTop:6 }}><Icon name="warn" size={12}/> {t.overspent(money(-balance))}</div>}
           </div>
         )}
 
         {fixedTotal>0 && (
           <div style={{ marginBottom:16, padding:"12px 14px", background:isDark?"#1a0a0a":"#fff5f5", border:"1px solid #f8717130", borderRadius:10 }}>
-            <div style={{ fontSize:fz(11), color:"#f87171", textTransform:"uppercase", letterSpacing:"0.12em", fontWeight:600, marginBottom:8 }}>🔒 {t.fixedTotal}</div>
+            <div style={{ fontSize:fz(11), color:"#f87171", textTransform:"uppercase", letterSpacing:"0.12em", fontWeight:600, marginBottom:8 }}><Icon name="lock" size={11}/> {t.fixedTotal}</div>
             {monthTxns.filter(tx=>tx.type==="fixed" && !isSaving(tx)).map(tx=>(
               <div key={tx.id} style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:4 }}>
                 <span style={{ fontSize:fz(12), color:theme.textMuted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tx.label}</span>
@@ -274,8 +290,8 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
           <div style={sectionTitle}>{t.breakdown}</div>
           {cats.length>0 && (
             <div style={{ display:"flex", border:`1px solid ${theme.border}`, borderRadius:8, overflow:"hidden" }}>
-              {[["donut","◔ "+t.viewDonut],["bars","☰ "+t.viewBars]].map(([v,l])=>(
-                <button key={v} onClick={()=>setBreakdownView(v)} style={{ padding:"3px 8px", fontSize:fz(11), fontFamily:"inherit", border:"none", background:breakdownView===v?"#60a5fa22":"transparent", color:breakdownView===v?"#60a5fa":theme.textMuted }}>{l}</button>
+              {[["donut",t.viewDonut],["bars",t.viewBars]].map(([v,l])=>(
+                <button key={v} onClick={()=>setBreakdownView(v)} style={{ padding:"3px 8px", fontSize:fz(11), fontFamily:"inherit", border:"none", background:breakdownView===v?"#60a5fa22":"transparent", color:breakdownView===v?"#60a5fa":theme.textMuted, display:"inline-flex", alignItems:"center", gap:5 }}><Icon name={v} size={12}/>{l}</button>
               ))}
             </div>
           )}
@@ -332,10 +348,10 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
                 <input type="number" min={1} max={100} value={targetDraft} onChange={e=>setTargetDraft(e.target.value)}
                   style={{ width:48, background:theme.input, border:`1px solid ${theme.borderStrong}`, borderRadius:6, padding:"3px 6px", color:theme.text, fontSize:fz(12), fontFamily:"inherit", textAlign:"center" }}/>
                 <span style={{ fontSize:fz(12), color:theme.textMuted }}>%</span>
-                <button onClick={()=>{ setSavingsTarget(Math.max(1,Math.min(100,parseInt(targetDraft)||20))); setEditingTarget(false); }} style={{ background:"#2563eb", border:"none", borderRadius:6, color:"#fff", fontSize:fz(11), padding:"3px 8px", cursor:"pointer" }}>✓</button>
+                <button onClick={()=>{ setSavingsTarget(Math.max(1,Math.min(100,parseInt(targetDraft)||20))); setEditingTarget(false); }} style={{ background:"#2563eb", border:"none", borderRadius:6, color:"#fff", fontSize:fz(11), padding:"3px 8px", cursor:"pointer", display:"inline-flex" }}><Icon name="check" size={12} strokeWidth={2.4}/></button>
               </div>
             ) : (
-              <button onClick={()=>{ setTargetDraft(String(savingsTarget)); setEditingTarget(true); }} style={{ background:"none", border:"none", color:theme.textMuted, cursor:"pointer", fontSize:fz(12), fontFamily:"inherit" }}>🎯 {savingsTarget}% ✏️</button>
+              <button onClick={()=>{ setTargetDraft(String(savingsTarget)); setEditingTarget(true); }} style={{ background:"none", border:"none", color:theme.textMuted, cursor:"pointer", fontSize:fz(12), fontFamily:"inherit", display:"inline-flex", alignItems:"center", gap:5 }}><Icon name="target" size={12}/>{savingsTarget}%<Icon name="edit" size={11}/></button>
             )}
           </div>
           {/* Target = % of income; Saved = sum of "Savings" transactions this month */}
@@ -344,7 +360,7 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
             <span style={{ fontSize:fz(13), color:theme.text, fontFamily:NUM_FONT, whiteSpace:"nowrap" }}>{money(targetAmt)}</span>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", gap:8, marginBottom:8 }}>
-            <span style={{ fontSize:fz(12), color:theme.textMuted }}>🏦 {t.savedLabel}</span>
+            <span style={{ fontSize:fz(12), color:theme.textMuted }}><Icon name="savings" size={13}/> {t.savedLabel}</span>
             <span style={{ fontSize:fz(13), fontWeight:500, color:SAVINGS_COLOR, fontFamily:NUM_FONT, whiteSpace:"nowrap" }}>{money(savedTotal)}</span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -373,7 +389,7 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
                 {remaining>0 && <div style={{ fontSize:fz(10), color:theme.textMuted, marginTop:2 }}>{t.afterGoal(money(remaining))}</div>}
               </>
             ) : (
-              <div style={{ fontSize:fz(11), color:"#f87171" }}>⚠️ {t.notEnoughLeft}</div>
+              <div style={{ fontSize:fz(11), color:"#f87171" }}><Icon name="warn" size={12}/> {t.notEnoughLeft}</div>
             ))}
           </div>
         </div>
@@ -397,22 +413,28 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
       </div>
 
       {/* Summary cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))", gap:8, flexShrink:0 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))", gap:8, flexShrink:0, padding:"4px 3px 2px" }}>
         {[
-          { label:t.income,     value:income,      color:"#34d399" },
-          { label:t.fixed,      value:fixedTotal,  color:"#f87171", badge:"🔒", sub:pctOfIncome(fixedTotal) },
+          { label:t.income,     value:income,      color:"#34d399", filter:"income" },
+          { label:t.fixed,      value:fixedTotal,  color:"#f87171", badge:<Icon name="lock" size={11}/>, sub:pctOfIncome(fixedTotal), filter:"fixed" },
           { label:t.afterFixed, value:afterFixed,  color:afterFixed>=0?"#60a5fa":"#f87171" },
-          { label:t.expenses,   value:varExpenses, color:"#fb923c", sub:pctOfIncome(varExpenses) },
-          { label:t.savingOpt,  value:savedTotal,  color:SAVINGS_COLOR, sub:targetAmt>0?`${t.targetLabel} ${money(targetAmt)}`:null },
-          { label:t.balance,    value:balance,     color:balance>=0?"#a78bfa":"#f87171", sub:income>0?t.leftPct(leftRate):null },
-        ].map(s=>(
-          <div key={s.label} style={{ background:theme.surface, border:`1px solid ${s.badge?s.color+"44":theme.border}`, borderRadius:12, padding:"10px 14px", position:"relative", minWidth:0 }}>
-            {s.badge && <span style={{ position:"absolute", top:6, right:8, fontSize:fz(10)}}>{s.badge}</span>}
+          { label:t.expenses,   value:varExpenses, color:"#fb923c", sub:pctOfIncome(varExpenses), filter:"expense" },
+          { label:t.savingOpt,  value:savedTotal,  color:SAVINGS_COLOR, sub:targetAmt>0?`${t.targetLabel} ${money(targetAmt)}`:null, filter:"saving" },
+          { label:t.balance,    value:balance,     color:balance>=0?theme.text:"#f87171", sub:income>0?t.leftPct(leftRate):null },
+        ].map(s=>{
+          const on = s.filter && filterType===s.filter;
+          return (
+          <div key={s.label} className="stat-card"
+            onClick={s.filter ? ()=>{ setFilterType(on?"all":s.filter); setPanel(0); } : undefined}
+            title={s.filter ? t.statFilterHint : undefined}
+            style={{ "--c":s.color, background:on?s.color+"14":theme.surface, boxShadow:theme.shadow, border:`1px solid ${on?s.color:s.badge?s.color+"44":theme.border}`, borderRadius:12, padding:"10px 14px", position:"relative", minWidth:0, overflow:"hidden", cursor:s.filter?"pointer":"default" }}>
+            {s.badge && <span style={{ position:"absolute", top:8, right:10, color:s.color, opacity:0.8, display:"inline-flex" }}>{s.badge}</span>}
             <div style={{ fontSize:fz(10), color:theme.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginBottom:6 }}>{s.label}</div>
-            <div style={{ fontSize:"clamp(16px, 2vw, 24px)", fontWeight:500, fontFamily:NUM_FONT, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", lineHeight:1.15, color:s.color, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{money(s.value)}</div>
+            <div style={{ fontSize:"clamp(16px, 2vw, 24px)", fontWeight:500, fontFamily:NUM_FONT, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", lineHeight:1.15, color:s.color, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}><CountUp value={s.value} format={money}/></div>
             {s.sub && <div style={{ fontSize:fz(10), color:theme.textMuted, marginTop:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.sub}</div>}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── DESKTOP: side-by-side grid ── */}
@@ -424,8 +446,8 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
       {/* ── MOBILE: Transactions | Breakdown switch (sticky), one panel at a time, swipe still works ── */}
       <div className="budget-mobile" style={{ display:"none", flexDirection:"column", gap:10 }}>
         <div style={{ position:"sticky", top:0, zIndex:5, background:theme.bg, padding:"4px 0 6px", display:"flex", gap:6 }}>
-          {[[0,`💸 ${t.transactionsLabel}`],[1,`📊 ${t.breakdown}`]].map(([p,l])=>(
-            <button key={p} onClick={()=>setPanel(p)} style={{ flex:1, padding:"9px 8px", borderRadius:10, border:`1px solid ${panel===p?"#60a5fa":theme.border}`, background:panel===p?"#60a5fa22":theme.surface, color:panel===p?"#60a5fa":theme.textMuted, fontSize:fz(13), fontFamily:"inherit", fontWeight:panel===p?600:400 }}>{l}</button>
+          {[[0,t.transactionsLabel,"transactions"],[1,t.breakdown,"breakdown"]].map(([p,l,ic])=>(
+            <button key={p} onClick={()=>setPanel(p)} style={{ flex:1, padding:"9px 8px", borderRadius:10, border:`1px solid ${panel===p?"#60a5fa":theme.border}`, background:panel===p?"#60a5fa22":theme.surface, color:panel===p?"#60a5fa":theme.textMuted, fontSize:fz(13), fontFamily:"inherit", fontWeight:panel===p?600:400, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Icon name={ic} size={15}/>{l}</button>
           ))}
         </div>
         <div ref={swipeRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} key={panel} style={{ animation:"fadeUp 0.2s ease" }}>
@@ -436,7 +458,7 @@ export default function BudgetTab({ theme, isDark, lang, txns, setTxns, savingsT
       {/* Undo toast after delete */}
       {undo && (
         <div style={{ position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"calc(84px + env(safe-area-inset-bottom,0px))", zIndex:60, display:"flex", alignItems:"center", gap:14, padding:"10px 16px", background:isDark?"#1e293b":"#0f172a", color:"#f1f5f9", borderRadius:12, boxShadow:"0 8px 30px rgba(0,0,0,0.3)", fontSize:fz(13), animation:"fadeUp 0.2s ease", whiteSpace:"nowrap" }}>
-          <span>🗑 {t.deleted}</span>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}><Icon name="trash" size={14}/>{t.deleted}</span>
           <button onClick={undoDelete} style={{ background:"none", border:"none", color:"#60a5fa", fontWeight:600, fontSize:fz(13), fontFamily:"inherit" }}>{t.undo}</button>
         </div>
       )}

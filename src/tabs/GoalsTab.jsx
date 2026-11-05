@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { T } from "../lib/i18n";
 import { AREA_COLORS, fz, daysUntil, goalDue, encodeStep, goalSteps, PRIO_RANK, FINANCE_AREA, SAVINGS_COLOR, NUM_FONT, lsGet, lsSet, fmtMoney } from "../lib/helpers";
-import { ProgressRing, FadeCard } from "../components/ui";
+import { ProgressRing, FadeCard, EmptyState } from "../components/ui";
+import { Icon } from "../components/Icon";
 
 // ─── GOALS TAB ────────────────────────────────────────────────────────────────
 export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify, focusGoalId, onFocusHandled }) {
@@ -82,22 +83,26 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, height:"100%", minHeight:0 }}>
       {/* Filter row */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
+      <div className="txn-toolbar" style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
+        <div className="txn-chips" style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
         <button onClick={()=>setFilter("all")} style={{ padding:"6px 14px", borderRadius:20, border:`1px solid ${filter==="all"?"#60a5fa":theme.border}`, background:filter==="all"?"#60a5fa22":"transparent", color:filter==="all"?"#60a5fa":theme.textMuted, fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", fontWeight:filter==="all"?600:400 }}>{t.allAreas}</button>
         {t.areas.map((a,i)=>{ const color=AREA_COLORS[a]||"#60a5fa", active=filter===String(i); return <button key={i} onClick={()=>setFilter(String(i))} style={{ padding:"6px 14px", borderRadius:20, border:`1px solid ${active?color:theme.border}`, background:active?color+"22":"transparent", color:active?color:theme.textMuted, fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", fontWeight:active?600:400 }}>{a}</button>; })}
-        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} aria-label={t.sortLabel}
-          style={{ marginLeft:"auto", background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:20, color:theme.textMuted, fontSize:fz(12), padding:"6px 10px", fontFamily:"inherit" }}>
-          <option value="due">↕ {t.sortDue}</option>
-          <option value="priority">↕ {t.sortPriority}</option>
-          <option value="progress">↕ {t.sortProgress}</option>
+        </div>
+        <div className="txn-actions" style={{ marginLeft:"auto", display:"flex", gap:8, alignItems:"center" }}>
+        <select className="sort-select" value={sortBy} onChange={e=>setSortBy(e.target.value)} aria-label={t.sortLabel}
+          style={{ background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:20, color:theme.textMuted, fontSize:fz(12), padding:"6px 10px", fontFamily:"inherit" }}>
+          <option value="due">{t.sortDue}</option>
+          <option value="priority">{t.sortPriority}</option>
+          <option value="progress">{t.sortProgress}</option>
         </select>
         <button onClick={()=>setAdding(true)} style={{ padding:"6px 16px", borderRadius:20, border:`1px solid ${isDark?"#1d4ed8":"#3b82f6"}`, background:isDark?"#1e3a8a":"#eff6ff", color:isDark?"#93c5fd":"#2563eb", fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", fontWeight:500 }}>{t.newGoal}</button>
+        </div>
       </div>
 
       <div className="goals-split" style={{ flex:1, minHeight:0, display:"grid", gridTemplateColumns:sel?"1fr min(380px,42%)":"1fr", gap:16, transition:"grid-template-columns 0.3s" }}>
         {/* Goals grid */}
         <div style={{ overflowY:"auto", minHeight:0, WebkitOverflowScrolling:"touch", overscrollBehavior:"contain" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))", gap:14, alignContent:"start", paddingBottom:16 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))", gap:14, alignContent:"start", padding:"6px 6px 16px" }}>
             {adding && (
               <div style={{ background:theme.surface, border:`1px solid ${isDark?"#1d4ed8":"#93c5fd"}`, borderRadius:16, padding:20, gridColumn:"1/-1", animation:"slideDown 0.2s ease" }}>
                 <div style={{ fontSize:fz(11), color:"#60a5fa", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:14, fontWeight:600 }}>{t.newGoalTitle}</div>
@@ -111,7 +116,7 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                   {newGoal.areaIdx===FINANCE_AREA && (
                     <div style={{ gridColumn:"1/-1" }}>
                       <input type="number" inputMode="decimal" min="0" placeholder={t.targetAmountLabel} value={newGoal.targetAmount} onChange={e=>setNewGoal({...newGoal,targetAmount:e.target.value})} style={{ ...iStyle, width:"100%" }}/>
-                      <div style={{ fontSize:fz(11), color:theme.textMuted, marginTop:4 }}>🏦 {t.linkedSavingsHint}</div>
+                      <div style={{ fontSize:fz(11), color:theme.textMuted, marginTop:4 }}><Icon name="savings" size={12}/> {t.linkedSavingsHint}</div>
                     </div>
                   )}
                 </div>
@@ -119,6 +124,13 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                   <button onClick={addGoal} style={{ flex:1, padding:"10px", background:"#2563eb", border:"none", borderRadius:8, color:"#fff", fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>{t.add}</button>
                   <button onClick={()=>setAdding(false)} style={{ padding:"10px 18px", background:theme.input, border:`1px solid ${theme.borderStrong}`, borderRadius:8, color:theme.textMuted, fontSize:fz(13), fontFamily:"inherit", cursor:"pointer" }}>{t.cancel}</button>
                 </div>
+              </div>
+            )}
+            {!adding && activeGoals.length===0 && doneGoals.length===0 && (
+              <div style={{ gridColumn:"1/-1" }}>
+                {goals.length===0
+                  ? <EmptyState theme={theme} icon="target" title={t.emptyGoalsTitle} hint={t.emptyGoalsHint} action={t.newGoal.replace(/^\+\s*/,"")} onAction={()=>setAdding(true)}/>
+                  : <EmptyState theme={theme} compact icon="search" title={t.emptyGoalsTitle} hint={t.noResultsHint}/>}
               </div>
             )}
             {[...activeGoals, ...(doneGoals.length?[{ __sep:true }]:[]), ...(showDone?doneGoals:[])].map((goal)=>{
@@ -136,12 +148,12 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
               const steps = goalSteps(goal), stepsDone = steps.filter(s=>s.done).length;
               return (
                 <FadeCard key={goal.id} className="goal-card" onClick={()=>{ setSelected(isSel?null:goal); setEditing(false); }}
-                  style={{ background:isSel?(isDark?"#0c1e3d":"#eff6ff"):theme.surface, border:`1px solid ${isSel?color+"99":isOverdue?"#f8717144":theme.border}`, borderRadius:16, padding:"20px 20px 16px", position:"relative", boxShadow:isSel?`0 0 0 1px ${color}33,0 6px 30px ${color}18`:"none" }}>
+                  style={{ "--c":color, background:isSel?(isDark?"#0c1e3d":"#eff6ff"):theme.surface, backgroundImage:`linear-gradient(180deg, ${color}14, transparent 120px)`, border:`1px solid ${isSel?color+"99":isOverdue?"#f8717144":theme.border}`, borderRadius:16, padding:"20px 20px 16px", position:"relative", boxShadow:isSel?`0 0 0 1px ${color}33,0 6px 30px ${color}18`:theme.shadow }}>
                   <button className="del-btn" aria-label={t.deleteGoal} onClick={e=>{ e.stopPropagation(); deleteGoal(goal); }} style={{ position:"absolute",top:12,right:12,background:theme.input,border:"none",borderRadius:6,color:"#f87171",fontSize:fz(15),cursor:"pointer",padding:"2px 8px" }}>×</button>
                   <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
                     <ProgressRing progress={goal.progress} color={color} theme={theme}/>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:fz(15), fontWeight:600, color:theme.text, lineHeight:1.35, marginBottom:6 }}>{goalTitle(goal)}</div>
+                      <div style={{ fontSize:fz(15), fontWeight:600, color:theme.text, lineHeight:1.35, marginBottom:6, paddingRight:24, overflowWrap:"anywhere" }}>{goalTitle(goal)}</div>
                       <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                         <span style={{ fontSize:fz(11), padding:"2px 8px", borderRadius:10, background:color+"20", color, fontWeight:500 }}>{areaName(goal.areaIdx)}</span>
                         <span style={{ fontSize:fz(11), padding:"2px 8px", borderRadius:10, background:goal.priority==="high"?"#f8717120":goal.priority==="medium"?"#fbbf2420":"#34d39920", color:goal.priority==="high"?"#f87171":goal.priority==="medium"?"#fbbf24":"#34d399", fontWeight:500 }}>{t.priority[goal.priority]}</span>
@@ -151,14 +163,14 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                   <div style={{ height:4, background:theme.ring, borderRadius:2, marginBottom:10, overflow:"hidden" }}>
                     <div style={{ height:"100%", width:`${goal.progress}%`, background:color, borderRadius:2, transition:"width 0.6s cubic-bezier(.4,0,.2,1)" }}/>
                   </div>
-                  <div style={{ display:"flex", justifyContent:"space-between", gap:8, fontSize:fz(12), color:theme.textMuted }}>
-                    <span style={{ color:isOverdue?"#f87171":theme.textMuted }}>
-                      📅 {dueDate ? dueDate.toLocaleDateString(T[lang].dateLocale,{day:"numeric",month:"short",year:"numeric"}) : "—"}
-                      {isOverdue && " ⚠️"}
+                  <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:"4px 8px", fontSize:fz(12), color:theme.textMuted }}>
+                    <span style={{ color:isOverdue?"#f87171":theme.textMuted, whiteSpace:"nowrap" }}>
+                      <Icon name="date" size={13}/> {dueDate ? dueDate.toLocaleDateString(T[lang].dateLocale,{day:"numeric",month:"short",year:"numeric"}) : "—"}
+                      {isOverdue && <> <Icon name="warn" size={12}/></>}
                     </span>
                     {goal.savedSoFar!=null
-                      ? <span style={{ color:SAVINGS_COLOR, fontFamily:NUM_FONT, whiteSpace:"nowrap" }}>🏦 {fmtMoney(goal.savedSoFar,lang)} / {fmtMoney(goal.targetAmount,lang)}</span>
-                      : steps.length>0 && <span>☑ {stepsDone}/{steps.length}</span>}
+                      ? <span style={{ color:SAVINGS_COLOR, fontFamily:NUM_FONT, whiteSpace:"nowrap" }}><Icon name="savings" size={13}/> {fmtMoney(goal.savedSoFar,lang)} / {fmtMoney(goal.targetAmount,lang)}</span>
+                      : steps.length>0 && <span><Icon name="steps" size={13}/> {stepsDone}/{steps.length}</span>}
                   </div>
                 </FadeCard>
               );
@@ -173,7 +185,7 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
                 <span style={{ fontSize:fz(11), color:AREA_COLORS[areaName(sel.areaIdx)], letterSpacing:"0.18em", textTransform:"uppercase", fontWeight:600 }}>{areaName(sel.areaIdx)}</span>
                 <div style={{ display:"flex", gap:8 }}>
-                  {!editing && <button onClick={startEdit} style={{ background:theme.input, border:`1px solid ${theme.border}`, borderRadius:8, color:theme.textMuted, cursor:"pointer", fontSize:fz(12), padding:"4px 12px", fontFamily:"inherit" }}>✏️ {t.edit}</button>}
+                  {!editing && <button onClick={startEdit} style={{ background:theme.input, border:`1px solid ${theme.border}`, borderRadius:8, color:theme.textMuted, cursor:"pointer", fontSize:fz(12), padding:"4px 12px", fontFamily:"inherit", display:"inline-flex", alignItems:"center", gap:6 }}><Icon name="edit" size={12}/>{t.edit}</button>}
                   <button onClick={()=>{ setSelected(null); setEditing(false); }} style={{ background:"none", border:"none", color:theme.textMuted, cursor:"pointer", fontSize:fz(20)}}>×</button>
                 </div>
               </div>
@@ -189,14 +201,14 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                   {editDraft.areaIdx===FINANCE_AREA && (
                     <div>
                       <input type="number" inputMode="decimal" min="0" placeholder={t.targetAmountLabel} value={editDraft.targetAmount} onChange={e=>setEditDraft({...editDraft,targetAmount:e.target.value})} style={{ ...iStyle, width:"100%" }}/>
-                      <div style={{ fontSize:fz(11), color:theme.textMuted, marginTop:4 }}>🏦 {t.linkedSavingsHint}</div>
+                      <div style={{ fontSize:fz(11), color:theme.textMuted, marginTop:4 }}><Icon name="savings" size={12}/> {t.linkedSavingsHint}</div>
                     </div>
                   )}
                   <div style={{ display:"flex", gap:8, marginTop:6 }}>
                     <button onClick={saveEdit} style={{ flex:1, padding:"10px", background:"#2563eb", border:"none", borderRadius:8, color:"#fff", fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>{t.saveEdit}</button>
                     <button onClick={()=>setEditing(false)} style={{ padding:"10px 14px", background:theme.input, border:`1px solid ${theme.borderStrong}`, borderRadius:8, color:theme.textMuted, fontSize:fz(13), fontFamily:"inherit", cursor:"pointer" }}>{t.cancel}</button>
                   </div>
-                  <button onClick={()=>deleteGoal(sel)} style={{ padding:"9px", background:"#f8717115", border:"1px solid #f8717144", borderRadius:8, color:"#f87171", fontSize:fz(13), fontFamily:"inherit", cursor:"pointer" }}>🗑 {t.deleteGoal}</button>
+                  <button onClick={()=>deleteGoal(sel)} style={{ padding:"9px", background:"#f8717115", border:"1px solid #f8717144", borderRadius:8, color:"#f87171", fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><Icon name="trash" size={14}/>{t.deleteGoal}</button>
                 </div>
               ) : (
                 <>
@@ -212,11 +224,16 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                           {fmtMoney(sel.savedSoFar,lang)} <span style={{ fontSize:fz(13), color:theme.textMuted }}>/ {fmtMoney(sel.targetAmount,lang)}</span>
                         </div>
                         <div style={{ fontSize:fz(12), color:theme.textMuted, marginTop:2 }}>
-                          🏦 {t.linkedSavings}{sel.savedSoFar<sel.targetAmount && ` · ${t.stillNeeded(fmtMoney(sel.targetAmount-sel.savedSoFar,lang))}`}
+                          <Icon name="savings" size={12}/> {t.linkedSavings}{sel.savedSoFar<sel.targetAmount && ` · ${t.stillNeeded(fmtMoney(sel.targetAmount-sel.savedSoFar,lang))}`}
                         </div>
                       </div>
                     ) : goalSteps(sel).length>0
-                      ? <div style={{ fontSize:fz(12), color:theme.textMuted }}>☑ {t.autoProgress}</div>
+                      ? <div>
+                          <div style={{ fontSize:fz(18), fontFamily:NUM_FONT, color:theme.text }}>
+                            {t.stepsOf(goalSteps(sel).filter(s=>s.done).length, goalSteps(sel).length)}
+                          </div>
+                          <div style={{ fontSize:fz(12), color:theme.textMuted, marginTop:2 }}><Icon name="steps" size={12}/> {t.autoProgress}</div>
+                        </div>
                       : <input type="range" min={0} max={100} value={sel.progress} onChange={e=>setGoals(goals.map(g=>g.id===sel.id?{...g,progress:Number(e.target.value)}:g))} style={{ width:"100%", accentColor:AREA_COLORS[areaName(sel.areaIdx)]||"#60a5fa" }}/>}
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
@@ -241,7 +258,7 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                         {steps.map((st,i)=>(
                           <div key={i} className="txn-row" style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:`1px solid ${theme.border}` }}>
                             <button onClick={()=>saveSteps(steps.map((s,j)=>j===i?{ ...s, done:!s.done }:s))} aria-label={st.done?"✓":"○"}
-                              style={{ width:20, height:20, flexShrink:0, borderRadius:6, border:`1.5px solid ${st.done?color:theme.borderStrong}`, background:st.done?color:"transparent", color:"#fff", fontSize:fz(12), lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>{st.done?"✓":""}</button>
+                              style={{ width:20, height:20, flexShrink:0, borderRadius:6, border:`1.5px solid ${st.done?color:theme.borderStrong}`, background:st.done?color:"transparent", color:"#fff", fontSize:fz(12), lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>{st.done && <Icon name="check" size={13} strokeWidth={3}/>}</button>
                             <span onClick={()=>saveSteps(steps.map((s,j)=>j===i?{ ...s, done:!s.done }:s))} style={{ flex:1, fontSize:fz(13), color:st.done?theme.textMuted:theme.text, textDecoration:st.done?"line-through":"none", cursor:"pointer" }}>{st.text}</span>
                             <button className="row-action" aria-label={t.deleteGoal} onClick={()=>saveSteps(steps.filter((_,j)=>j!==i))} style={{ background:"none", border:"none", color:"#f87171", fontSize:fz(15), padding:"0 4px" }}>×</button>
                           </div>

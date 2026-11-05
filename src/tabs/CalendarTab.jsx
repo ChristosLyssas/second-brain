@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { T } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 import { AREA_COLORS, fz, daysUntil, goalDue, isSaving, NUM_FONT, fmtMoney, parseTxnDate } from "../lib/helpers";
 
 // ─── CALENDAR TAB ─────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export default function CalendarTab({ theme, isDark, lang, goals, txns, openGoal
               {gs && gs.length>2 && <div style={{ fontSize:fz(8), color:isToday?"#fff":theme.textMuted }}>+{gs.length-2}</div>}
               {fx && (
                 <div style={{ marginTop:2, fontSize:fz(9), fontWeight:600, color:isToday?"#fff":"#f87171", background:isToday?"#f8717166":"#f8717122", borderRadius:3, padding:"1px 4px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", lineHeight:1.6, fontFamily:NUM_FONT }}>
-                  🔒 {fmtMoney(fx.reduce((s,tx)=>s+Math.abs(tx.amount),0), lang)}
+                  <Icon name="lock" size={10}/> {fmtMoney(fx.reduce((s,tx)=>s+Math.abs(tx.amount),0), lang)}
                 </div>
               )}
             </div>
@@ -136,7 +137,7 @@ export default function CalendarTab({ theme, isDark, lang, goals, txns, openGoal
           {(goalsByDay[selectedDay]||[]).map(goalRow)}
           {(fixedByDay[selectedDay]||[]).map(tx=>(
             <div key={tx.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isDark?"#1a0a0a":"#fff5f5", border:"1px solid #f8717130", borderRadius:10, marginBottom:6 }}>
-              <span>🔒</span>
+              <span style={{ display:"inline-flex" }}><Icon name="lock" size={12}/></span>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:fz(14), fontWeight:500, color:theme.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tx.label}</div>
                 <div style={{ fontSize:fz(12), color:theme.textMuted }}>{t.fixedPayments} · {t.budgetCategories[tx.catIdx]||""}</div>
@@ -151,7 +152,7 @@ export default function CalendarTab({ theme, isDark, lang, goals, txns, openGoal
       {/* Deadline list for this month */}
       {Object.keys(goalsByDay).length>0 && (
         <div style={{ flexShrink:0 }}>
-          <div style={sectionTitle}>📋 {t.deadlinesTitle}</div>
+          <div style={sectionTitle}><Icon name="deadlines" size={13}/> {t.deadlinesTitle}</div>
           {Object.entries(goalsByDay)
             .sort((a,b)=>Number(a[0])-Number(b[0]))
             .flatMap(([,gs])=>gs.map(goalRow))}
@@ -161,8 +162,8 @@ export default function CalendarTab({ theme, isDark, lang, goals, txns, openGoal
 
       {/* Upcoming panel — full width below */}
       {upcoming.length>0 && (
-        <div style={{ background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:14, padding:16, flexShrink:0 }}>
-          <div style={{ fontSize:fz(11), color:theme.textMuted, textTransform:"uppercase", letterSpacing:"0.14em", fontWeight:600, marginBottom:12 }}>🚀 {t.upcoming}</div>
+        <div style={{ background:theme.surface, border:`1px solid ${theme.border}`, boxShadow:theme.shadow, borderRadius:14, padding:16, flexShrink:0 }}>
+          <div style={{ fontSize:fz(11), color:theme.textMuted, textTransform:"uppercase", letterSpacing:"0.14em", fontWeight:600, marginBottom:12 }}><Icon name="upcoming" size={13}/> {t.upcoming}</div>
           {upcoming.map(g=>{
             const color=AREA_COLORS[areaName(g.areaIdx)]||"#60a5fa";
             const daysLeft=daysUntil(goalDue(g));

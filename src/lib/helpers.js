@@ -45,8 +45,8 @@ export function toggleChecklistLine(text, idx) {
   return lines.join("\n");
 }
 
-export const DARK  = { bg:"#080f1a",surface:"#0c1525",border:"#1e293b",borderStrong:"#334155",text:"#f1f5f9",textMuted:"#94a3b8",textDim:"#64748b",input:"#1e293b",ring:"#1e293b",scrollThumb:"#1e293b",pinBg:"#0f0a1e",pinBorder:"#7c3aed66" };
-export const LIGHT = { bg:"#f0f4ff",surface:"#ffffff",border:"#e2e8f0",borderStrong:"#cbd5e1",text:"#0f172a",textMuted:"#475569",textDim:"#94a3b8",input:"#f8fafc",ring:"#e2e8f0",scrollThumb:"#cbd5e1",pinBg:"#faf5ff",pinBorder:"#a78bfa88" };
+export const DARK  = { bg:"#080f1a",surface:"#0e1829",border:"#172235",shadow:"0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.55)",borderStrong:"#334155",text:"#f1f5f9",textMuted:"#94a3b8",textDim:"#64748b",input:"#1e293b",ring:"#1e293b",scrollThumb:"#1e293b",pinBg:"#0b1730",pinBorder:"#3b82f666" };
+export const LIGHT = { bg:"#f0f4ff",surface:"#ffffff",border:"#e8edf5",shadow:"0 1px 2px rgba(15,23,42,0.05), 0 8px 24px -14px rgba(15,23,42,0.18)",borderStrong:"#cbd5e1",text:"#0f172a",textMuted:"#475569",textDim:"#94a3b8",input:"#f8fafc",ring:"#e2e8f0",scrollThumb:"#cbd5e1",pinBg:"#eff6ff",pinBorder:"#93c5fd" };
 
 // ─── BUDGET HELPERS ───────────────────────────────────────────────────────────
 export const INCOME_CAT = 8, OTHER_CAT = 7, SAVINGS_CAT = 9;
@@ -54,7 +54,9 @@ export const SAVINGS_COLOR = "#2dd4bf";
 // Savings are stored as type "expense" + category "Savings" (no DB schema change needed),
 // but are treated as money put aside — never as spending.
 export const isSaving = (tx) => tx.type!=="income" && Number(tx.catIdx)===SAVINGS_CAT;
-export const NUM_FONT = "'DM Mono','Courier New',monospace";
+// One family for the whole UI (full Greek support); swap it here to try another
+export const UI_FONT  = "'Commissioner',system-ui,-apple-system,'Segoe UI',sans-serif";
+export const NUM_FONT = UI_FONT;
 export const GR_MONTHS = ["ιαν","φεβ","μαρ","απρ","μαι","ιουν","ιουλ","αυγ","σεπ","οκτ","νοε","δεκ"];
 export const EN_MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
 
