@@ -1,0 +1,7 @@
+# Keep line endings consistent (LF in the repo and working tree) — stops the "LF will be replaced by CRLF" warnings
+* text=auto eol=lf
+
+# Binary files: never touch
+*.png binary
+*.jpg binary
+*.ico binary

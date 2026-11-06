@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+/* global __APP_VERSION__ */
+const APP_VERSION = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";   // from package.json (vite.config.js)
 import { supabase, auth } from "../lib/supabase";
 import { T } from "../lib/i18n";
 import { Icon } from "../components/Icon";
@@ -245,6 +247,12 @@ export default function ProfileTab({ tabPrefs, setTabPrefs, midTabs=[], onReplay
             </div>
           )}
         </div>
+
+        {/* App version → GitHub release notes */}
+        <a href="https://github.com/ChristosLyssas/second-brain/releases" target="_blank" rel="noopener noreferrer"
+          style={{ display:"block", textAlign:"center", marginTop:24, fontSize:fz(12), color:theme.textDim, textDecoration:"none" }}>
+          Second Brain v{APP_VERSION} · <span style={{ color:"#60a5fa" }}>{t.whatsNew}</span>
+        </a>
       </div>
     </div>
   );

@@ -60,7 +60,7 @@ export const T = {
     urgentTitle:"Επείγοντα", nothingUrgent:"Τίποτα επείγον", thisMonth:"Αυτόν τον μήνα",
     pinnedTitle:"Καρφιτσωμένες σημειώσεις", recentNotes:"Πρόσφατες σημειώσεις", inProgress:"Σε εξέλιξη",
     noProgressHint:"Κανένας στόχος σε εξέλιξη. Τσέκαρε ένα βήμα ή ανέβασε την πρόοδο ενός στόχου για να εμφανιστεί εδώ.", moveLeft:"Αριστερά", moveRight:"Δεξιά",
-    customizeToday:"Διάταξη", doneLabel:"Τέλος", hideSection:"Απόκρυψη", showSection:"Εμφάνιση", hiddenSections:"Κρυμμένα", layoutHint:"Σύρε τις κάρτες ή χρησιμοποίησε τα βελάκια", moveUp:"Πάνω", moveDown:"Κάτω",
+    customizeToday:"Διάταξη", doneLabel:"Τέλος", hideSection:"Απόκρυψη", showSection:"Εμφάνιση", hiddenSections:"Κρυμμένα", layoutHint:"Σύρε τις κάρτες ή χρησιμοποίησε τα βελάκια",
     openTab:"Άνοιγμα →", inDays:(n)=>`σε ${n} μέρες`, tomorrow:"Αύριο",
     // Profile settings
     settings:"Ρυθμίσεις", languageLabel:"Γλώσσα", themeLabel:"Εμφάνιση", darkMode:"Σκοτεινό", lightMode:"Φωτεινό",
@@ -79,7 +79,7 @@ export const T = {
     colorLabel:"Χρώμα", eventTimeError:"Η λήξη είναι πριν την έναρξη", eventDeleted:"Το συμβάν διαγράφηκε",
     upcomingEvents:"Επόμενα συμβάντα", noEventsSoon:"Κανένα συμβάν τις επόμενες μέρες", eventsTitle:"Συμβάντα", addToDay:"Προσθήκη συμβάντος", longPressHint:"Πάτα δύο φορές μια μέρα για νέο συμβάν", openDay:"Άνοιγμα ημέρας",
     // Welcome tour
-    tabsTitle:"Καρτέλες", tabsHint:"Σύρε από τη λαβή για να αλλάξεις σειρά. Το μάτι κρύβει μια καρτέλα (τα δεδομένα της μένουν).", resetTabs:"Επαναφορά", tabsFixed:"Το Today μένει πρώτο και το Me τελευταίο.",
+    whatsNew:"Τι νέο υπάρχει", tabsTitle:"Καρτέλες", tabsHint:"Σύρε από τη λαβή για να αλλάξεις σειρά. Το μάτι κρύβει μια καρτέλα (τα δεδομένα της μένουν).", resetTabs:"Επαναφορά", tabsFixed:"Το Today μένει πρώτο και το Me τελευταίο.",
     tourSkip:"Παράλειψη", tourBack:"Πίσω", tourNext:"Επόμενο", tourStart:"Ας ξεκινήσουμε", replayTour:"Δες ξανά τον οδηγό",
     tour:[
       { icon:"logo", title:"Καλώς ήρθες στο Second Brain", text:"Στόχοι, σημειώσεις, χρήματα και ημερολόγιο σε ένα μέρος. Δες σε ένα λεπτό πώς δουλεύει." },
@@ -149,7 +149,7 @@ export const T = {
     urgentTitle:"Urgent", nothingUrgent:"Nothing urgent", thisMonth:"This month",
     pinnedTitle:"Pinned notes", recentNotes:"Recent notes", inProgress:"In progress",
     noProgressHint:"No goals in progress. Tick a step or raise a goal's progress and it will show up here.", moveLeft:"Left", moveRight:"Right",
-    customizeToday:"Layout", doneLabel:"Done", hideSection:"Hide", showSection:"Show", hiddenSections:"Hidden", layoutHint:"Drag the cards or use the arrows", moveUp:"Up", moveDown:"Down",
+    customizeToday:"Layout", doneLabel:"Done", hideSection:"Hide", showSection:"Show", hiddenSections:"Hidden", layoutHint:"Drag the cards or use the arrows",
     openTab:"Open →", inDays:(n)=>`in ${n} days`, tomorrow:"Tomorrow",
     // Profile settings
     settings:"Settings", languageLabel:"Language", themeLabel:"Appearance", darkMode:"Dark", lightMode:"Light",
@@ -167,7 +167,7 @@ export const T = {
     repeatLabel:"Repeat", repeatOpts:{ none:"Never", weekly:"Every week", monthly:"Every month", yearly:"Every year" },
     colorLabel:"Colour", eventTimeError:"End time is before start time", eventDeleted:"Event deleted",
     upcomingEvents:"Upcoming events", noEventsSoon:"No events in the next few days", eventsTitle:"Events", addToDay:"Add event", longPressHint:"Double-tap a day to add an event", openDay:"Open day",
-    tabsTitle:"Tabs", tabsHint:"Drag the handle to reorder. The eye hides a tab (its data stays).", resetTabs:"Reset", tabsFixed:"Today stays first and Me last.",
+    whatsNew:"What's new", tabsTitle:"Tabs", tabsHint:"Drag the handle to reorder. The eye hides a tab (its data stays).", resetTabs:"Reset", tabsFixed:"Today stays first and Me last.",
     tourSkip:"Skip", tourBack:"Back", tourNext:"Next", tourStart:"Let's go", replayTour:"See the guide again",
     tour:[
       { icon:"logo", title:"Welcome to Second Brain", text:"Goals, notes, money and calendar in one place. Here's how it works, in a minute." },
