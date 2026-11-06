@@ -50,6 +50,13 @@ export const T = {
     dayEmpty:"Τίποτα αυτή τη μέρα", deadlinesTitle:"Προθεσμίες", fixedPayments:"Πάγια πληρωμή", overdue:"Εκπρόθεσμο",
     // Today
     todayLabel:"Σήμερα", greeting:(h)=>h<12?"Καλημέρα":h<18?"Καλό απόγευμα":"Καλησπέρα",
+    // A different greeting each time: [text, is it a question?] per part of the day (the name goes before the "?")
+    greetings:{
+      night:[["Αργά απόψε",0],["Νυχτερινή βάρδια",0],["Ακόμα στο πόδι",1],["Λίγο ακόμα και ύπνο",0]],
+      morning:[["Καλημέρα",0],["Καλή αρχή στη μέρα",0],["Ξεκινάμε",0],["Τι λέει η σημερινή μέρα",1],["Μια νέα μέρα σε περιμένει",0]],
+      afternoon:[["Καλό απόγευμα",0],["Γεια σου",0],["Πώς πάει η μέρα",1],["Μισή μέρα πέρασε",0],["Καλώς ήρθες πίσω",0]],
+      evening:[["Καλησπέρα",0],["Καλό βράδυ",0],["Πώς πήγε η μέρα",1],["Ώρα για χαλάρωση",0],["Τι κάναμε σήμερα",1]],
+    },
     urgentTitle:"Επείγοντα", nothingUrgent:"Τίποτα επείγον", thisMonth:"Αυτόν τον μήνα",
     pinnedTitle:"Καρφιτσωμένες σημειώσεις", recentNotes:"Πρόσφατες σημειώσεις", inProgress:"Σε εξέλιξη",
     noProgressHint:"Κανένας στόχος σε εξέλιξη. Τσέκαρε ένα βήμα ή ανέβασε την πρόοδο ενός στόχου για να εμφανιστεί εδώ.", moveLeft:"Αριστερά", moveRight:"Δεξιά",
@@ -65,6 +72,12 @@ export const T = {
     deleteAccountWarn:"Θα διαγραφούν οριστικά ο λογαριασμός σου και όλοι οι στόχοι, οι σημειώσεις και οι κινήσεις σου. Δεν αναιρείται.",
     deleteWord:"ΔΙΑΓΡΑΦΗ", deleteTypeHint:(w)=>`Γράψε ${w} για επιβεβαίωση`, deleteForever:"Διαγραφή για πάντα",
     deleteFailed:"Η διαγραφή απέτυχε. Δοκίμασε ξανά.",
+    // Calendar events
+    newEvent:"+ Νέο συμβάν", newEventTitle:"Νέο συμβάν", editEvent:"Επεξεργασία συμβάντος", eventPlaceholder:"Τίτλος (π.χ. Συναυλία)",
+    eventDate:"Ημερομηνία", allDay:"Ολοήμερο", startTime:"Από", endTime:"Έως", eventLocation:"Τοποθεσία", eventNotes:"Σημειώσεις",
+    repeatLabel:"Επανάληψη", repeatOpts:{ none:"Καμία", weekly:"Κάθε εβδομάδα", monthly:"Κάθε μήνα", yearly:"Κάθε χρόνο" },
+    colorLabel:"Χρώμα", eventTimeError:"Η λήξη είναι πριν την έναρξη", eventDeleted:"Το συμβάν διαγράφηκε",
+    upcomingEvents:"Επόμενα συμβάντα", noEventsSoon:"Κανένα συμβάν τις επόμενες μέρες", eventsTitle:"Συμβάντα", addToDay:"Προσθήκη συμβάντος", longPressHint:"Πάτα δύο φορές μια μέρα για νέο συμβάν", openDay:"Άνοιγμα ημέρας", openInGoals:"Άνοιγμα στα Goals", calViews:{ day:"Ημέρα", week:"Εβδομάδα", month:"Μήνας", year:"Έτος" },
   },
   en: {
     appTitle:["Second","Brain"], dateLocale:"en-GB",
@@ -116,6 +129,12 @@ export const T = {
     dayEmpty:"Nothing on this day", deadlinesTitle:"Deadlines", fixedPayments:"Fixed payment", overdue:"Overdue",
     // Today
     todayLabel:"Today", greeting:(h)=>h<12?"Good morning":h<18?"Good afternoon":"Good evening",
+    greetings:{
+      night:[["Burning the midnight oil",0],["Late one tonight",0],["Still up",1],["Almost bedtime",0]],
+      morning:[["Good morning",0],["Rise and shine",0],["Let's get going",0],["What's on today",1],["A fresh day ahead",0]],
+      afternoon:[["Good afternoon",0],["Hey there",0],["How's the day going",1],["Halfway through the day",0],["Welcome back",0]],
+      evening:[["Good evening",0],["Evening",0],["How did today go",1],["Time to wind down",0],["What did we get done today",1]],
+    },
     urgentTitle:"Urgent", nothingUrgent:"Nothing urgent", thisMonth:"This month",
     pinnedTitle:"Pinned notes", recentNotes:"Recent notes", inProgress:"In progress",
     noProgressHint:"No goals in progress. Tick a step or raise a goal's progress and it will show up here.", moveLeft:"Left", moveRight:"Right",
@@ -131,5 +150,11 @@ export const T = {
     deleteAccountWarn:"Your account and all your goals, notes and transactions will be permanently deleted. This can't be undone.",
     deleteWord:"DELETE", deleteTypeHint:(w)=>`Type ${w} to confirm`, deleteForever:"Delete forever",
     deleteFailed:"Deletion failed. Please try again.",
+    // Calendar events
+    newEvent:"+ New event", newEventTitle:"New event", editEvent:"Edit event", eventPlaceholder:"Title (e.g. Concert)",
+    eventDate:"Date", allDay:"All day", startTime:"From", endTime:"To", eventLocation:"Location", eventNotes:"Notes",
+    repeatLabel:"Repeat", repeatOpts:{ none:"Never", weekly:"Every week", monthly:"Every month", yearly:"Every year" },
+    colorLabel:"Colour", eventTimeError:"End time is before start time", eventDeleted:"Event deleted",
+    upcomingEvents:"Upcoming events", noEventsSoon:"No events in the next few days", eventsTitle:"Events", addToDay:"Add event", longPressHint:"Double-tap a day to add an event", openDay:"Open day", openInGoals:"Open in Goals", calViews:{ day:"Day", week:"Week", month:"Month", year:"Year" },
   },
 };

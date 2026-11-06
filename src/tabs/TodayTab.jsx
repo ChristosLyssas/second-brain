@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { CountUp } from "../components/ui";
+import { upcomingOccurrences, timeLabel, EVENT_COLORS } from "../lib/events";
 import { AREA_COLORS, fz, daysUntil, goalDue, SAVINGS_COLOR, NUM_FONT, fmtMoney, monthBudget, lsGet, lsSet } from "../lib/helpers";
 
 // Section ids in their default order; the user's order/hidden set is kept per device
-const SECTIONS = ["urgent","money","progress","notes"];
+const SECTIONS = ["urgent","events","money","progress","notes"];
 function loadLayout() {
   let saved = null;
   try { saved = JSON.parse(lsGet("sb_today_layout", "null")); } catch { saved = null; }
@@ -16,9 +17,9 @@ function loadLayout() {
 }
 
 // Soft colour identity per section (top fade + title icon)
-const ACCENT = { money:"#34d399", urgent:"#f87171", progress:"#fbbf24", notes:"#60a5fa" };
+const ACCENT = { money:"#34d399", urgent:"#f87171", events:"#2dd4bf", progress:"#fbbf24", notes:"#60a5fa" };
 
-export default function TodayTab({ theme, lang, goals, notes, txns, savingsTarget, displayName, setTab, openGoal }) {
+export default function TodayTab({ events=[], theme, lang, goals, notes, txns, savingsTarget, displayName, setTab, openGoal }) {
   const t = T[lang], locale = t.dateLocale;
   const money = (n) => fmtMoney(n, lang);
   const now = new Date();
@@ -45,12 +46,52 @@ export default function TodayTab({ theme, lang, goals, notes, txns, savingsTarge
     [order[i], order[j]] = [order[j], order[i]];
     setLayout({ ...layout, order });
   };
-  const dropOn = (targetId) => {
-    if (!dragId || dragId===targetId) return;
-    const order = layout.order.filter(id=>id!==dragId);
-    order.splice(order.indexOf(targetId), 0, dragId);
+  // Drop `from` onto `to`: moving down puts it after the target, moving up puts it before
+  // (so dropping on the very next box works too)
+  const reorder = (from, to) => {
+    if (!from || !to || from===to) return;
+    const down = layout.order.indexOf(from) < layout.order.indexOf(to);
+    const order = layout.order.filter(id=>id!==from);
+    order.splice(order.indexOf(to) + (down ? 1 : 0), 0, from);
     setLayout({ ...layout, order });
   };
+  const dropOn = (targetId) => reorder(dragId, targetId);
+  // ── Touch drag (phones): HTML drag-and-drop only works with a mouse. In Layout mode, hold a box
+  // ~0.3s, then drag it; it follows the finger and the box under it marks where it will go.
+  const touch = useRef(null);   // { id, x0, y0, timer, active }
+  const [touchDrag, setTouchDrag] = useState(null);   // { id, dx, dy } while dragging
+  const endTouch = (drop) => {
+    const t0 = touch.current; touch.current = null;
+    if (t0) clearTimeout(t0.timer);
+    if (drop && t0?.active) reorder(t0.id, overIdRef.current);
+    setTouchDrag(null); setDragId(null); setOverId(null); overIdRef.current = null;
+  };
+  const overIdRef = useRef(null);
+  const onCardTouchStart = (e, id) => {
+    if (!editing || e.touches.length!==1 || e.target.closest("button")) return;
+    const { clientX:x0, clientY:y0 } = e.touches[0];
+    const t0 = { id, x0, y0, active:false };
+    t0.timer = setTimeout(()=>{ t0.active = true; navigator.vibrate?.(15); setDragId(id); setTouchDrag({ id, dx:0, dy:0 }); }, 300);
+    touch.current = t0;
+  };
+  useEffect(()=>{
+    if (!editing) return;
+    const onMove = (e) => {
+      const t0 = touch.current; if (!t0) return;
+      const { clientX:x, clientY:y } = e.touches[0];
+      if (!t0.active) { if (Math.hypot(x-t0.x0, y-t0.y0) > 10) endTouch(false); return; }   // it's a scroll
+      e.preventDefault();   // dragging: don't scroll the page
+      setTouchDrag({ id:t0.id, dx:x-t0.x0, dy:y-t0.y0 });
+      const under = document.elementFromPoint(x, y)?.closest("[data-sec]")?.getAttribute("data-sec") || null;
+      if (under!==overIdRef.current) { overIdRef.current = under; setOverId(under); }
+    };
+    const onEnd = () => { if (touch.current) endTouch(true); };
+    window.addEventListener("touchmove", onMove, { passive:false });
+    window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
+    return ()=>{ window.removeEventListener("touchmove", onMove); window.removeEventListener("touchend", onEnd); window.removeEventListener("touchcancel", onEnd); };
+  }); // re-bound each render so it sees the current layout
+
   const toggleHidden = (id) => setLayout({ ...layout, hidden: layout.hidden.includes(id) ? layout.hidden.filter(x=>x!==id) : [...layout.hidden, id] });
 
   // Overdue or due within 7 days, not finished
@@ -67,7 +108,31 @@ export default function TodayTab({ theme, lang, goals, notes, txns, savingsTarge
   const openLink = (tab) => <button onClick={()=>setTab(tab)} style={{ marginTop:4, alignSelf:"flex-start", background:"none", border:"none", color:"#60a5fa", fontSize:fz(12), fontFamily:"inherit", padding:0 }}>{t.openTab}</button>;
   const dueLabel = (d) => { const n=daysUntil(d); return n<0?t.overdue:n===0?t.today:n===1?t.tomorrow:t.inDays(n); };
 
+  // Events in the next 7 days (repeating ones included)
+  const soon = upcomingOccurrences(events, now, 7, 4);
+
   const sections = {
+    events: {
+      title: <><Icon name="date" size={13}/> {t.eventsTitle}</>,
+      body: <>
+        {soon.length===0 && <div style={muted}>{t.noEventsSoon}</div>}
+        {soon.map(({ ev, date })=>{
+          const n = daysUntil(date), c = ev.color || EVENT_COLORS[0];
+          const when = n===0 ? t.today : n===1 ? t.tomorrow : date.toLocaleDateString(locale,{ weekday:"short", day:"numeric" });
+          return (
+            <div key={`${ev.id}-${date.getTime()}`} onClick={()=>setTab("calendar")} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+              <div style={{ width:3, alignSelf:"stretch", minHeight:30, borderRadius:2, background:c, flexShrink:0 }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:fz(14), color:theme.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ev.title}</div>
+                <div style={{ fontSize:fz(12), color:theme.textMuted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{timeLabel(ev, t)}{ev.location ? ` · ${ev.location}` : ""}</div>
+              </div>
+              <span style={{ fontSize:fz(11), padding:"2px 8px", borderRadius:8, background:n===0?c+"26":theme.input, color:n===0?c:theme.textMuted, fontWeight:600, whiteSpace:"nowrap", textTransform:"capitalize" }}>{when}</span>
+            </div>
+          );
+        })}
+        {openLink("calendar")}
+      </>,
+    },
     urgent: {
       title: <><Icon name="urgent" size={13}/> {t.urgentTitle}</>,
       body: <>
@@ -142,12 +207,26 @@ export default function TodayTab({ theme, lang, goals, notes, txns, savingsTarge
   const visible = layout.order.filter(id=>!layout.hidden.includes(id) && (editing || !sections[id].empty));
   const iconBtn = (disabled) => ({ background:theme.input, border:`1px solid ${theme.border}`, borderRadius:8, color:theme.textMuted, width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", fontSize:fz(12), padding:0, opacity:disabled?0.3:1, cursor:disabled?"default":"pointer" });
 
+  // A different greeting on each visit (never the same one twice in a row)
+  const hour = now.getHours();
+  const part = hour<5 ? "night" : hour<12 ? "morning" : hour<18 ? "afternoon" : hour<23 ? "evening" : "night";
+  const pool = t.greetings[part];
+  const [greetIdx] = useState(()=>{
+    const last = lsGet("sb_last_greeting", "");
+    let i = Math.floor(Math.random()*pool.length);
+    if (`${part}:${i}`===last) i = (i+1) % pool.length;
+    lsSet("sb_last_greeting", `${part}:${i}`);
+    return i;
+  });
+  const [gText, isQ] = pool[greetIdx % pool.length];
+  const greetingText = `${gText}${displayName?`, ${displayName}`:""}${isQ ? (lang==="el" ? ";" : "?") : ""}`;
+
   return (
-    <div style={{ height:"100%", minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain", paddingBottom:20 }}>
+    <div style={{ height:"100%", minHeight:0, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain", paddingBottom:20 }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:fz(22), fontWeight:500, letterSpacing:"0.01em", lineHeight:1.3, color:theme.text }}>
-            {t.greeting(now.getHours())}{displayName?`, ${displayName}`:""}
+            {greetingText}
           </div>
           <div style={{ fontSize:fz(13), color:theme.textMuted, marginTop:2, textTransform:"capitalize" }}>
             {now.toLocaleDateString(locale,{ weekday:"long", day:"numeric", month:"long", year:"numeric" })}
@@ -165,7 +244,9 @@ export default function TodayTab({ theme, lang, goals, notes, txns, savingsTarge
           const s = sections[id];
           const isOver = editing && overId===id && dragId && dragId!==id;
           return (
-            <div key={id} className={editing ? undefined : "lift-card"}
+            <div key={id} className={editing ? undefined : "lift-card"} data-sec={id}
+              onTouchStart={e=>onCardTouchStart(e, id)}
+              onContextMenu={e=>{ if (editing) e.preventDefault(); }}
               draggable={editing}
               onDragStart={e=>{ setDragId(id); e.dataTransfer.effectAllowed="move"; }}
               onDragOver={e=>{ if (!editing) return; e.preventDefault(); if (overId!==id) setOverId(id); }}
@@ -174,8 +255,10 @@ export default function TodayTab({ theme, lang, goals, notes, txns, savingsTarge
               onDragEnd={()=>{ setDragId(null); setOverId(null); }}
               style={{ ...card, "--accent":ACCENT[id], backgroundImage:`linear-gradient(180deg, ${ACCENT[id]}14, transparent 110px)`,
                 ...(editing ? { cursor:"grab", borderStyle:"dashed", borderColor:isOver?"#60a5fa":theme.borderStrong } : {}),
-                opacity: dragId===id ? 0.4 : 1,
-                transition:"opacity 0.2s, border-color 0.2s" }}>
+                ...(editing ? { userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none" } : {}),
+                ...(touchDrag?.id===id
+                  ? { transform:`translate(${touchDrag.dx}px, ${touchDrag.dy}px) scale(1.02)`, opacity:0.92, zIndex:20, position:"relative", pointerEvents:"none", boxShadow:"0 18px 40px rgba(0,0,0,0.35)", transition:"box-shadow 0.2s" }
+                  : { opacity: dragId===id ? 0.4 : 1, transition:"opacity 0.2s, border-color 0.2s" }) }}>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <div className="sec-title" style={{ ...title, flex:1, minWidth:0 }}>{s.title}</div>
                 {editing && <>

@@ -5,7 +5,7 @@ import { Icon } from "../components/Icon";
 import { fz, isSaving, toISO, parseTxnDate, downloadFile } from "../lib/helpers";
 
 // ─── PROFILE TAB ──────────────────────────────────────────────────────────────
-export default function ProfileTab({ theme, isDark, lang, session, setLang, setIsDark, savingsTarget, setSavingsTarget, goals, notes, txns }) {
+export default function ProfileTab({ events=[], theme, isDark, lang, session, setLang, setIsDark, savingsTarget, setSavingsTarget, goals, notes, txns }) {
   const t = T[lang];
   const [displayName, setDisplayName] = useState(session.user.user_metadata?.display_name||"");
   const [avatarUrl, setAvatarUrl] = useState(session.user.user_metadata?.avatar_url||"");
@@ -42,7 +42,7 @@ export default function ProfileTab({ theme, isDark, lang, session, setLang, setI
   const commitTarget = () => { const v=Math.max(1, Math.min(100, parseInt(targetDraft)||20)); setSavingsTarget(v); setTargetDraft(String(v)); };
 
   function exportJSON() {
-    const data = { exportedAt:new Date().toISOString(), goals, notes, transactions:txns };
+    const data = { exportedAt:new Date().toISOString(), goals, notes, transactions:txns, events };
     downloadFile(`secondbrain-${toISO(new Date())}.json`, JSON.stringify(data, null, 2), "application/json");
   }
   function exportCSV() {

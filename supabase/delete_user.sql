@@ -13,6 +13,10 @@ begin
   if uid is null then
     raise exception 'not authenticated';
   end if;
+  -- events: removed by "on delete cascade" (supabase/events.sql); explicit here in case the table is older
+  if to_regclass('public.events') is not null then
+    execute 'delete from public.events where user_id = $1' using uid;
+  end if;
   delete from public.transactions where user_id = uid;
   delete from public.notes        where user_id = uid;
   delete from public.goals        where user_id = uid;

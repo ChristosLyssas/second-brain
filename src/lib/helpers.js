@@ -46,7 +46,8 @@ export function toggleChecklistLine(text, idx) {
 }
 
 export const DARK  = { bg:"#080f1a",surface:"#0e1829",border:"#172235",shadow:"0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.55)",borderStrong:"#334155",text:"#f1f5f9",textMuted:"#94a3b8",textDim:"#64748b",input:"#1e293b",ring:"#1e293b",scrollThumb:"#1e293b",pinBg:"#0b1730",pinBorder:"#3b82f666" };
-export const LIGHT = { bg:"#f0f4ff",surface:"#ffffff",border:"#e8edf5",shadow:"0 1px 2px rgba(15,23,42,0.05), 0 8px 24px -14px rgba(15,23,42,0.18)",borderStrong:"#cbd5e1",text:"#0f172a",textMuted:"#475569",textDim:"#94a3b8",input:"#f8fafc",ring:"#e2e8f0",scrollThumb:"#cbd5e1",pinBg:"#eff6ff",pinBorder:"#93c5fd" };
+// Light theme: soft grey-blue page with off-white cards (pure white was too glaring)
+export const LIGHT = { bg:"#e4e9f0",surface:"#f5f7fa",border:"#d6dde7",shadow:"0 1px 2px rgba(15,23,42,0.06), 0 8px 24px -14px rgba(15,23,42,0.22)",borderStrong:"#bcc6d3",text:"#1e293b",textMuted:"#4b5a6e",textDim:"#8492a6",input:"#ebeff4",ring:"#d5dce6",scrollThumb:"#bcc6d3",pinBg:"#e7eefa",pinBorder:"#9dbbe8" };
 
 // ─── BUDGET HELPERS ───────────────────────────────────────────────────────────
 export const INCOME_CAT = 8, OTHER_CAT = 7, SAVINGS_CAT = 9;

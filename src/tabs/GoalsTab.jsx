@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T } from "../lib/i18n";
 import { AREA_COLORS, fz, daysUntil, goalDue, encodeStep, goalSteps, PRIO_RANK, FINANCE_AREA, SAVINGS_COLOR, NUM_FONT, lsGet, lsSet, fmtMoney } from "../lib/helpers";
 import { ProgressRing, FadeCard, EmptyState } from "../components/ui";
 import { Icon } from "../components/Icon";
 
 // ─── GOALS TAB ────────────────────────────────────────────────────────────────
-export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify, focusGoalId, onFocusHandled }) {
+export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify, focusGoalId, onFocusHandled, onBack }) {
   const t = T[lang];
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(null);
@@ -22,9 +22,11 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
   const goalTitle = (g) => lang==="el" ? g.titleEl : g.titleEn;
   const sel = selected ? goals.find(g=>g.id===selected.id) : null;
 
-  // Opened from Calendar / Today → select that goal
+  // Opened from Calendar / Today → select that goal; its ✕ goes back there (onBack) unless you pick another goal here
+  const pickedHere = useRef(false);
   useEffect(()=>{
     if (focusGoalId==null) return;
+    pickedHere.current = false;
     const g = goals.find(x=>x.id===focusGoalId);
     if (g) { setFilter("all"); setSelected(g); setEditing(false); if (g.progress>=100) setShowDone(true); }
     onFocusHandled?.();
@@ -147,8 +149,8 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
               const isOverdue = dueDate && daysUntil(dueDate) < 0 && goal.progress < 100;
               const steps = goalSteps(goal), stepsDone = steps.filter(s=>s.done).length;
               return (
-                <FadeCard key={goal.id} className="goal-card" onClick={()=>{ setSelected(isSel?null:goal); setEditing(false); }}
-                  style={{ "--c":color, background:isSel?(isDark?"#0c1e3d":"#eff6ff"):theme.surface, backgroundImage:`linear-gradient(180deg, ${color}14, transparent 120px)`, border:`1px solid ${isSel?color+"99":isOverdue?"#f8717144":theme.border}`, borderRadius:16, padding:"20px 20px 16px", position:"relative", boxShadow:isSel?`0 0 0 1px ${color}33,0 6px 30px ${color}18`:theme.shadow }}>
+                <FadeCard key={goal.id} className="goal-card" onClick={()=>{ setSelected(isSel?null:goal); setEditing(false); pickedHere.current = true; }}
+                  style={{ "--c":color, background:isSel?(isDark?"#0c1e3d":"#e3ecfb"):theme.surface, backgroundImage:`linear-gradient(180deg, ${color}14, transparent 120px)`, border:`1px solid ${isSel?color+"99":isOverdue?"#f8717144":theme.border}`, borderRadius:16, padding:"20px 20px 16px", position:"relative", boxShadow:isSel?`0 0 0 1px ${color}33,0 6px 30px ${color}18`:theme.shadow }}>
                   <button className="del-btn" aria-label={t.deleteGoal} onClick={e=>{ e.stopPropagation(); deleteGoal(goal); }} style={{ position:"absolute",top:12,right:12,background:theme.input,border:"none",borderRadius:6,color:"#f87171",fontSize:fz(15),cursor:"pointer",padding:"2px 8px" }}>×</button>
                   <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
                     <ProgressRing progress={goal.progress} color={color} theme={theme}/>
@@ -186,7 +188,7 @@ export default function GoalsTab({ theme, isDark, lang, goals, setGoals, notify,
                 <span style={{ fontSize:fz(11), color:AREA_COLORS[areaName(sel.areaIdx)], letterSpacing:"0.18em", textTransform:"uppercase", fontWeight:600 }}>{areaName(sel.areaIdx)}</span>
                 <div style={{ display:"flex", gap:8 }}>
                   {!editing && <button onClick={startEdit} style={{ background:theme.input, border:`1px solid ${theme.border}`, borderRadius:8, color:theme.textMuted, cursor:"pointer", fontSize:fz(12), padding:"4px 12px", fontFamily:"inherit", display:"inline-flex", alignItems:"center", gap:6 }}><Icon name="edit" size={12}/>{t.edit}</button>}
-                  <button onClick={()=>{ setSelected(null); setEditing(false); }} style={{ background:"none", border:"none", color:theme.textMuted, cursor:"pointer", fontSize:fz(20)}}>×</button>
+                  <button onClick={()=>{ setSelected(null); setEditing(false); if (!pickedHere.current) onBack?.(); }} style={{ background:"none", border:"none", color:theme.textMuted, cursor:"pointer", fontSize:fz(20)}}>×</button>
                 </div>
               </div>
 

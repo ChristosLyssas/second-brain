@@ -1,6 +1,6 @@
 // SecondBrain service worker — makes the app installable and lets the shell open offline.
 // Only same-origin GET requests are cached; Supabase / analytics calls always go to the network.
-const CACHE = "secondbrain-v1";
+const CACHE = "secondbrain-v2";   // bump when icons or other cached files change
 
 self.addEventListener("install", () => self.skipWaiting());
 

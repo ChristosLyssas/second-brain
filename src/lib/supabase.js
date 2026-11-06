@@ -111,6 +111,75 @@ export const goalsDB = {
   },
 }
 
+// EVENTS (calendar; table from supabase/events.sql)
+const eventFromRow = (r) => ({
+  id:        r.id,
+  title:     r.title,
+  date:      r.event_date,
+  allDay:    r.all_day,
+  start:     r.start_time ? String(r.start_time).slice(0, 5) : '',
+  end:       r.end_time ? String(r.end_time).slice(0, 5) : '',
+  location:  r.location || '',
+  notes:     r.notes || '',
+  color:     r.color || '',
+  repeat:    r.repeat || 'none',
+  createdAt: r.created_at,
+})
+const eventToRow = (e) => {
+  const timed = !e.allDay && !!e.start
+  return {
+    title:      e.title,
+    event_date: e.date,
+    all_day:    !timed,
+    start_time: timed ? e.start : null,
+    end_time:   timed && e.end ? e.end : null,
+    location:   e.location || null,
+    notes:      e.notes || null,
+    color:      e.color || null,
+    repeat:     e.repeat || 'none',
+  }
+}
+
+export const eventsDB = {
+  async fetch(userId) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('event_date', { ascending: true })
+    if (error) throw error
+    return data.map(eventFromRow)
+  },
+
+  async insert(userId, ev) {
+    const { data, error } = await supabase
+      .from('events')
+      .insert({ user_id: userId, ...eventToRow(ev) })
+      .select()
+      .single()
+    if (error) throw error
+    return eventFromRow(data)
+  },
+
+  async update(eventId, ev) {
+    const { data, error } = await supabase
+      .from('events')
+      .update(eventToRow(ev))
+      .eq('id', eventId)
+      .select()
+    if (error) throw error
+    if (!data || data.length === 0) throw new Error('Event update affected 0 rows (check UPDATE policy on "events")')
+  },
+
+  async delete(eventId) {
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', eventId)
+    if (error) throw error
+  },
+}
+
 // NOTES
 export const notesDB = {
   async fetch(userId) {

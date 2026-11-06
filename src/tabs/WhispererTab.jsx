@@ -4,6 +4,18 @@ import { tagColor, fz, encodeStep, CHECK_RE, toggleChecklistLine } from "../lib/
 import { NoteBody, EmptyState } from "../components/ui";
 import { Icon } from "../components/Icon";
 
+// Tags are stored without "#" (typing "#idea" or "idea" is the same); old "#tag" values are cleaned on display
+const cleanTag = (tg) => String(tg).trim().replace(/^#+/, "");
+const parseTags = (s) => [...new Set(String(s).split(",").map(cleanTag).filter(Boolean))];
+
+// Masonry: put each note in the currently shortest column (keeps reading order left → right)
+function estimateHeight(note, text, colWidth, editing) {
+  if (editing) return 320;
+  const perLine = Math.max(12, Math.floor((colWidth - 36) / 8.2));
+  const lines = String(text).split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0);
+  return 96 + lines * 25 + (note.tags.length ? 30 : 0);
+}
+
 // ─── WHISPERER TAB ────────────────────────────────────────────────────────────
 export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goals, setGoals, notify }) {
   const t = T[lang];
@@ -14,11 +26,10 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState("");
   const [editTags, setEditTags] = useState("");
-  // Collapsible quick capture: hides on scroll down, reappears on scroll up
-  const [captureCollapsed, setCaptureCollapsed] = useState(false);
+  // Phones: the capture form scrolls away with the notes (no resizing while scrolling → no jitter);
+  // once it's out of view a slim bar appears on top that brings it back.
+  const [showBar, setShowBar] = useState(false);
   const scrollRef = useRef(null);
-  const lastScrollY = useRef(0);
-  const scrollAcc = useRef(0);          // distance scrolled in the current direction
   const captureRef = useRef(null);
   // PC: capture on the left, notes on the right (no collapsing needed there)
   const [wide, setWide] = useState(()=>typeof window!=="undefined" && window.matchMedia("(min-width:900px)").matches);
@@ -30,35 +41,47 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
   }, []);
 
   useEffect(() => {
-    const el = scrollRef.current; if (!el) return;
-    const onScroll = () => {
-      const y = el.scrollTop;
-      const dy = y - lastScrollY.current;
-      lastScrollY.current = y;
-      if (window.matchMedia("(min-width:900px)").matches) return;
-      // Never fold while the user is typing in the capture box
-      if (captureRef.current?.contains(document.activeElement)) return;
-      // Only react after a deliberate scroll in one direction (prevents flicker / jumpy toggling)
-      if ((dy > 0) !== (scrollAcc.current > 0)) scrollAcc.current = 0;
-      scrollAcc.current += dy;
-      if (y < 30) { setCaptureCollapsed(false); scrollAcc.current = 0; }
-      else if (scrollAcc.current > 60)  { setCaptureCollapsed(true);  scrollAcc.current = 0; }
-      else if (scrollAcc.current < -50) { setCaptureCollapsed(false); scrollAcc.current = 0; }
-    };
-    el.addEventListener("scroll", onScroll, { passive:true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+    if (wide) return;   // the bar only exists on phones
+    const root = scrollRef.current, target = captureRef.current;
+    if (!root || !target || typeof IntersectionObserver==="undefined") return;
+    const io = new IntersectionObserver(([e])=>setShowBar(!e.isIntersecting), { root, rootMargin:"-24px 0px 0px 0px", threshold:0 });
+    io.observe(target);
+    return () => io.disconnect();
+  }, [wide]);
+  const focusCapture = () => {
+    scrollRef.current?.scrollTo({ top:0, behavior:"smooth" });
+    setTimeout(()=>captureRef.current?.querySelector("textarea")?.focus({ preventScroll:true }), 350);
+  };
 
-  const allTags = [...new Set(notes.flatMap(n=>n.tags))];
+  const allTags = [...new Set(notes.flatMap(n=>n.tags.map(cleanTag)).filter(Boolean))];
   const filtered = notes.filter(n=>{
     const content=lang==="el"?n.content:(n.contentEn||n.content);
-    const ms=!search||content.toLowerCase().includes(search.toLowerCase())||n.tags.some(tg=>tg.includes(search.toLowerCase()));
-    return ms&&(!activeTag||n.tags.includes(activeTag));
+    const tags=n.tags.map(cleanTag), q=search.toLowerCase().replace(/^#+/,"");
+    const ms=!search||content.toLowerCase().includes(search.toLowerCase())||tags.some(tg=>tg.toLowerCase().includes(q));
+    return ms&&(!activeTag||tags.includes(activeTag));
   }).sort((a,b)=>b.pinned-a.pinned);
+
+  // Column count from the list's width: 2 on phones, ~260px per column on bigger screens
+  const [listWidth, setListWidth] = useState(0);
+  useEffect(()=>{
+    const el = scrollRef.current; if (!el || typeof ResizeObserver==="undefined") return;
+    const ro = new ResizeObserver(([e])=>setListWidth(e.contentRect.width));
+    ro.observe(el);
+    return ()=>ro.disconnect();
+  },[]);
+  const cols = listWidth ? Math.max(2, Math.min(5, Math.floor((listWidth+12)/272))) : 2;
+  const narrow = listWidth>0 && listWidth<560;
+  const colWidth = listWidth ? (listWidth - (cols-1)*12) / cols : 200;
+  const columns = Array.from({ length:cols }, ()=>({ h:0, items:[] }));
+  filtered.forEach((note,i)=>{
+    const c = columns.reduce((a,b)=>b.h<a.h?b:a);
+    c.items.push({ note, i });
+    c.h += estimateHeight(note, lang==="el"?note.content:(note.contentEn||note.content), colWidth, editingId===note.id) + 12;
+  });
 
   function addNote() {
     if (!draft.trim()) return;
-    const tags=draftTag.split(",").map(tg=>tg.trim()).filter(Boolean);
+    const tags=parseTags(draftTag);
     const today=new Date().toLocaleDateString(T[lang].dateLocale,{day:"numeric",month:"short",year:"numeric"});
     setNotes([{ id:Date.now(), content:draft, contentEn:draft, tags, pinned:false, date:today, createdAt:new Date().toISOString() },...notes]);
     setDraft(""); setDraftTag("");
@@ -87,29 +110,14 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
     notify(t.goalCreated, { kind:"goto", tab:"goals" });
   }
 
-  function startEdit(e,note) { e.stopPropagation(); setEditingId(note.id); setEditContent(lang==="el"?note.content:(note.contentEn||note.content)); setEditTags(note.tags.join(", ")); }
-  function saveEdit(e,note) { e.stopPropagation(); const tags=editTags.split(",").map(tg=>tg.trim()).filter(Boolean); setNotes(notes.map(n=>n.id===note.id?{...n,content:editContent,contentEn:editContent,tags}:n)); setEditingId(null); }
+  function startEdit(e,note) { e.stopPropagation(); setEditingId(note.id); setEditContent(lang==="el"?note.content:(note.contentEn||note.content)); setEditTags(note.tags.map(cleanTag).join(", ")); }
+  function saveEdit(e,note) { e.stopPropagation(); const tags=parseTags(editTags); setNotes(notes.map(n=>n.id===note.id?{...n,content:editContent,contentEn:editContent,tags}:n)); setEditingId(null); }
 
   const cs = { background:theme.input, border:`1px solid ${theme.borderStrong}`, borderRadius:8, padding:"9px 14px", color:theme.text, fontSize:fz(13), fontFamily:"inherit" };
 
-  const showCollapsed = captureCollapsed && !wide;
-  const ease = "cubic-bezier(.22,1,.36,1)";
   const capture = (
-    <div ref={captureRef} style={{ flexShrink:0, position:"relative", overflow:"hidden",
-      maxHeight: showCollapsed ? 40 : (wide ? "none" : 220),
-      transition:`max-height 0.5s ${ease}` }}>
-      {/* Slim bar: fades in on top while the full form folds away underneath */}
-      {!wide && (
-        <button onClick={()=>{ setCaptureCollapsed(false); scrollAcc.current = 0; }} tabIndex={showCollapsed?0:-1} aria-hidden={!showCollapsed}
-          style={{ position:"absolute", top:0, left:0, right:0, height:40, zIndex:1, padding:"0 16px", background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:12, color:theme.textMuted, fontSize:fz(12), fontFamily:"inherit", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:8,
-            opacity:showCollapsed?1:0, pointerEvents:showCollapsed?"auto":"none", transition:`opacity 0.3s ease ${showCollapsed?"0.12s":"0s"}` }}>
-          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{draft.trim() || t.capturePlaceholder}</span>
-          <span style={{ fontSize:fz(10)}}>↑</span>
-        </button>
-      )}
-      <div style={{ background:theme.surface, border:`1px solid ${theme.border}`, boxShadow:theme.shadow, borderRadius:16, padding:16,
-        opacity:showCollapsed?0:1, transform:showCollapsed?"translateY(-10px)":"none", pointerEvents:showCollapsed?"none":"auto",
-        transition:`opacity 0.3s ease, transform 0.5s ${ease}` }}>
+    <div ref={captureRef} style={{ flexShrink:0 }}>
+      <div style={{ background:theme.surface, border:`1px solid ${theme.border}`, boxShadow:theme.shadow, borderRadius:16, padding:16 }}>
         <div style={{ fontSize:fz(11), color:"#60a5fa", letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:8, fontWeight:600 }}>{t.quickCapture}</div>
         <textarea placeholder={t.capturePlaceholder} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.metaKey||e.ctrlKey)&&addNote()} rows={wide?9:2}
           style={{ ...cs, width:"100%", marginBottom:8, lineHeight:1.6, fontSize:fz(14), padding:"10px 14px", resize:wide?"vertical":"none", borderRadius:10 }}/>
@@ -122,64 +130,95 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
     </div>
   );
 
-  return (
-    <div style={{ display:"flex", gap:20, height:"100%", minHeight:0 }}>
-      {wide && <div style={{ width:"clamp(300px, 28vw, 420px)", flexShrink:0, overflowY:"auto" }}>{capture}</div>}
-    <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:10, height:"100%", minHeight:0 }}>
-
-      {!wide && capture}
-
-      {/* Tag filters */}
-      <div style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
-        <div style={{ position:"relative" }}>
+  const filters = (
+      <div className="wh-filters" style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
+        <div style={{ position:"relative", flexShrink:0 }}>
           <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:theme.textMuted, pointerEvents:"none", display:"inline-flex" }}><Icon name="search" size={13}/></span>
           <input placeholder={t.searchPlaceholder} value={search} onChange={e=>setSearch(e.target.value)}
-            style={{ background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:20, padding:"7px 14px 7px 30px", color:theme.text, fontSize:fz(13), fontFamily:"inherit", width:160, outline:"none" }}/>
+            style={{ background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:20, padding:"7px 14px 7px 30px", color:theme.text, fontSize:fz(13), fontFamily:"inherit", width:narrow?130:160, outline:"none" }}/>
         </div>
         {allTags.map(tag=>(
           <button key={tag} onClick={()=>setActiveTag(activeTag===tag?null:tag)} style={{ padding:"4px 12px", borderRadius:20, border:`1px solid ${activeTag===tag?tagColor(tag):theme.border}`, background:activeTag===tag?tagColor(tag)+"20":"transparent", color:activeTag===tag?tagColor(tag):theme.textMuted, fontSize:fz(12), fontFamily:"inherit", cursor:"pointer", transition:"all 0.15s" }}>#{tag}</button>
         ))}
         {(search||activeTag) && <button onClick={()=>{setSearch("");setActiveTag(null);}} style={{ padding:"4px 10px", borderRadius:20, border:`1px solid ${theme.border}`, background:"transparent", color:theme.textMuted, fontSize:fz(12), fontFamily:"inherit", cursor:"pointer" }}>{t.clear}</button>}
-        <span style={{ marginLeft:"auto", fontSize:fz(12), color:theme.textDim }}>{t.notesCount(filtered.length)}</span>
+        <span className="wh-count" style={{ marginLeft:"auto", fontSize:fz(12), color:theme.textDim, whiteSpace:"nowrap" }}>{t.notesCount(filtered.length)}</span>
       </div>
+  );
 
-      {/* Notes — scrollRef here drives the collapse logic */}
+  return (
+    <div style={{ display:"flex", gap:20, height:"100%", minHeight:0 }}>
+      {wide && <div style={{ width:"clamp(300px, 28vw, 420px)", flexShrink:0, overflowY:"auto" }}>{capture}</div>}
+    <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:10, height:"100%", minHeight:0 }}>
+
+      {wide && filters}
+
+      {/* Notes (on phones the capture form and filters scroll along with them) */}
       <div ref={scrollRef} style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain" }}>
-        <div style={{ display:"flex", flexWrap:"wrap", alignItems:"flex-start", gap:12, padding:"4px 2px 32px" }}>
-          {filtered.map((note,i)=>(
+        {!wide && (
+          <>
+            {/* Slim bar, pinned to the top once the form has scrolled away (0-height sticky → no layout shift) */}
+            <div style={{ position:"sticky", top:0, height:0, zIndex:5 }}>
+              <button onClick={focusCapture} tabIndex={showBar?0:-1} aria-hidden={!showBar}
+                style={{ position:"absolute", top:0, left:0, right:0, height:40, padding:"0 14px", background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:12, boxShadow:"0 8px 20px -10px rgba(0,0,0,0.5)", color:theme.textMuted, fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:8,
+                  opacity:showBar?1:0, transform:showBar?"none":"translateY(-6px)", pointerEvents:showBar?"auto":"none", transition:"opacity 0.25s ease, transform 0.25s ease" }}>
+                <Icon name="plus" size={15} style={{ color:"#60a5fa" }}/>
+                <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{draft.trim() || t.capturePlaceholder}</span>
+              </button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:10 }}>
+              {capture}
+              {filters}
+            </div>
+          </>
+        )}
+        <div style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"4px 2px 32px" }}>
+          {columns.map((col,ci)=>(
+          <div key={ci} style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:12 }}>
+          {col.items.map(({ note, i })=>{
+            const editing = editingId===note.id;
+            const actBtn = { background:"none", border:"none", cursor:"pointer", color:theme.textMuted, padding:4, display:"inline-flex", borderRadius:6 };
+            return (
             <div key={note.id} className="note-card lift-card"
-              style={{ width:"fit-content", minWidth:editingId===note.id?"min(340px,100%)":"min(200px,100%)", maxWidth:"min(460px,100%)", background:note.pinned?theme.pinBg:theme.surface, border:`1px solid ${note.pinned?theme.pinBorder:theme.border}`, borderRadius:14, padding:18, position:"relative", boxShadow:note.pinned?`${theme.shadow}, 0 0 28px ${isDark?"#3b82f618":"#60a5fa22"}`:theme.shadow, transition:"transform 0.18s", animation:"fadeUp 0.3s ease backwards", animationDelay:`${i*40}ms` }}>
-              <div className="note-actions" style={{ float:"right", margin:"-6px -8px 4px 8px", display:"flex", gap:2 }}>
-                <button onClick={e=>startEdit(e,note)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:fz(13), color:theme.textMuted, opacity:editingId===note.id?1:0.3, transition:"opacity 0.15s", padding:"2px 5px" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity=editingId===note.id?"1":"0.3"}><Icon name="edit" size={14}/></button>
-                <button onClick={e=>{e.stopPropagation();setNotes(notes.map(n=>n.id===note.id?{...n,pinned:!n.pinned}:n));}} style={{ background:"none", border:"none", cursor:"pointer", fontSize:fz(13), color:note.pinned?"#60a5fa":theme.textMuted, padding:"2px 4px", opacity:note.pinned?1:0.35, transition:"opacity 0.18s,transform 0.15s" }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.2)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}><Icon name="pin" size={14} style={note.pinned?{ fill:"currentColor" }:undefined}/></button>
-                <button title={t.makeGoal} aria-label={t.makeGoal} onClick={e=>{ e.stopPropagation(); noteToGoal(note); }} style={{ background:"none", border:"none", cursor:"pointer", color:theme.textMuted, opacity:0.35, transition:"opacity 0.15s", padding:"2px 4px" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0.35"}><Icon name="toGoal" size={14}/></button>
-                <button aria-label={t.deleteGoal} onClick={e=>{ e.stopPropagation(); deleteNote(note); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:fz(15), color:"#f87171", opacity:0.3, transition:"opacity 0.15s" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0.3"}><Icon name="close" size={15}/></button>
-              </div>
-              {editingId===note.id ? (
-                <div onClick={e=>e.stopPropagation()}>
-                  <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={4} style={{ ...cs, width:"100%", marginBottom:8, lineHeight:1.6, fontSize:fz(14), padding:"10px 14px", resize:"none", borderRadius:10 }}/>
-                  <input value={editTags} onChange={e=>setEditTags(e.target.value)} placeholder={t.tagsPlaceholder} style={{ ...cs, width:"100%", marginBottom:10 }}/>
-                  <div style={{ display:"flex", gap:8 }}>
+              style={{ background:note.pinned?theme.pinBg:theme.surface, border:`1px solid ${note.pinned?theme.pinBorder:theme.border}`, borderRadius:14, padding:narrow?"14px 14px 8px":"16px 18px 10px", position:"relative", boxShadow:note.pinned?`${theme.shadow}, 0 0 28px ${isDark?"#3b82f618":"#60a5fa22"}`:theme.shadow, animation:"fadeUp 0.3s ease backwards", animationDelay:`${Math.min(i,12)*35}ms` }}>
+              {editing ? (
+                <div onClick={e=>e.stopPropagation()} style={{ paddingBottom:6 }}>
+                  <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={5} style={{ ...cs, width:"100%", boxSizing:"border-box", marginBottom:8, lineHeight:1.6, fontSize:fz(14), padding:"10px 12px", resize:"vertical", borderRadius:10 }}/>
+                  <input value={editTags} onChange={e=>setEditTags(e.target.value)} placeholder={t.tagsPlaceholder} style={{ ...cs, width:"100%", boxSizing:"border-box", marginBottom:10 }}/>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                     <button onClick={e=>saveEdit(e,note)} style={{ flex:1, padding:"8px", background:"#2563eb", border:"none", borderRadius:8, color:"#fff", fontSize:fz(13), fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>{t.saveEdit}</button>
                     <button onClick={e=>{e.stopPropagation();setEditingId(null);}} style={{ padding:"8px 14px", background:theme.input, border:`1px solid ${theme.borderStrong}`, borderRadius:8, color:theme.textMuted, fontSize:fz(13), fontFamily:"inherit", cursor:"pointer" }}>{t.cancel}</button>
                   </div>
                 </div>
               ) : (
-                <div>
-                  <div style={{ fontSize:fz(15), color:theme.text, lineHeight:1.7, marginBottom:12 }}>
+                <>
+                  <div style={{ fontSize:fz(narrow?14:15), color:theme.text, lineHeight:1.65, marginBottom:10, overflowWrap:"anywhere" }}>
                     <NoteBody text={noteText(note)} search={search.trim()} theme={theme} clamp={false} onToggleLine={(idx)=>toggleLine(note, idx)}/>
                   </div>
-                  <div style={{ clear:"both", display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-                    {note.tags.map(tag=><span key={tag} style={{ fontSize:fz(12), padding:"3px 10px", borderRadius:10, background:tagColor(tag)+"20", color:tagColor(tag), fontWeight:500 }}>#{tag}</span>)}
-                    <span style={{ fontSize:fz(12), color:theme.textDim, marginLeft:"auto" }}>{noteDate(note)}</span>
+                  {note.tags.length>0 && (
+                    <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:6 }}>
+                      {note.tags.map(cleanTag).filter(Boolean).map(tag=><span key={tag} onClick={()=>setActiveTag(activeTag===tag?null:tag)} style={{ fontSize:fz(11.5), padding:"2px 9px", borderRadius:10, background:tagColor(tag)+"20", color:tagColor(tag), fontWeight:500, cursor:"pointer", maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>#{tag}</span>)}
+                    </div>
+                  )}
+                  {/* footer: date + actions (faint until hover on desktop, always visible on touch) */}
+                  <div style={{ display:"flex", alignItems:"center", gap:2, marginLeft:-4 }}>
+                    <span style={{ fontSize:fz(11.5), color:theme.textDim, flex:1, minWidth:0, paddingLeft:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{noteDate(note)}</span>
+                    <div className="note-actions" style={{ display:"flex", gap:0, marginRight:-4 }}>
+                      <button className="na-btn" aria-label="edit" onClick={e=>startEdit(e,note)} style={actBtn}><Icon name="edit" size={14}/></button>
+                      <button className="na-btn" aria-label="pin" onClick={e=>{e.stopPropagation();setNotes(notes.map(n=>n.id===note.id?{...n,pinned:!n.pinned}:n));}} style={{ ...actBtn, color:note.pinned?"#60a5fa":theme.textMuted }}><Icon name="pin" size={14} style={note.pinned?{ fill:"currentColor" }:undefined}/></button>
+                      <button className="na-btn" title={t.makeGoal} aria-label={t.makeGoal} onClick={e=>{ e.stopPropagation(); noteToGoal(note); }} style={actBtn}><Icon name="toGoal" size={14}/></button>
+                      <button className="na-btn na-del" aria-label={t.deleteGoal} onClick={e=>{ e.stopPropagation(); deleteNote(note); }} style={actBtn}><Icon name="close" size={15}/></button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
+            );
+          })}
+          </div>
           ))}
         </div>
         {filtered.length===0 && (notes.length===0
-          ? <EmptyState theme={theme} icon="notes" title={t.emptyNotesTitle} hint={t.emptyNotesHint} action={t.writeNote} onAction={()=>captureRef.current?.querySelector("textarea")?.focus()}/>
+          ? <EmptyState theme={theme} icon="notes" title={t.emptyNotesTitle} hint={t.emptyNotesHint} action={t.writeNote} onAction={focusCapture}/>
           : <EmptyState theme={theme} compact icon="search" title={t.noNotes} hint={t.noResultsHint}/>)}
       </div>
     </div>

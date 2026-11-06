@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { auth, goalsDB, notesDB, txnsDB, isRecoveryLink } from "./lib/supabase";
+import { auth, goalsDB, notesDB, txnsDB, eventsDB, isRecoveryLink } from "./lib/supabase";
 import { T } from "./lib/i18n";
 import { Icon } from "./components/Icon";
 import { fz, DARK, LIGHT, isSaving, UI_FONT } from "./lib/helpers";
@@ -49,6 +49,7 @@ function SecondBrain({ session }) {
   const [goals, setGoalsRaw, goalsLoading] = useSupabaseData(goalsDB, userId, "sb_goals");
   const [notes, setNotesRaw, notesLoading] = useSupabaseData(notesDB, userId, "sb_notes");
   const [txns,  setTxnsRaw,  txnsLoading]  = useSupabaseData(txnsDB,  userId, "sb_txns");
+  const [events, setEventsRaw]              = useSupabaseData(eventsDB, userId, "sb_events");   // no events table yet → stays []
 
   function makeSetter(snapshot, setRaw, db) {
     return async (updater) => {
@@ -64,13 +65,18 @@ function SecondBrain({ session }) {
   const setGoals = (u) => makeSetter(goals, setGoalsRaw, goalsDB)(u);
   const setNotes = (u) => makeSetter(notes, setNotesRaw, notesDB)(u);
   const setTxns  = (u) => makeSetter(txns,  setTxnsRaw,  txnsDB)(u);
+  const setEvents = (u) => makeSetter(events, setEventsRaw, eventsDB)(u);
 
   const [tab,    setTabRaw]    = useState("today");   // always open on Today (after login and on every app start)
   const [isDark, setIsDarkRaw] = useState(()=>localStorage.getItem("sb_dark")!=="false");
   const [lang,   setLangRaw]   = useState(()=>{ const l=localStorage.getItem("sb_lang"); return (l==="el"||l==="en")?l:"el"; });
   const [savingsTarget, setSavingsTargetRaw] = useState(()=>parseInt(localStorage.getItem("sb_savings_target")||"20"));
 
-  const setTab    = v=>{ setTabRaw(v); };
+  // Goal opened from Calendar/Today → its ✕ returns there (forgotten as soon as you switch tabs yourself)
+  const [returnTab, setReturnTab] = useState(null);
+  const [calPopDay, setCalPopDay] = useState(null);   // the Calendar day pop-up a goal was opened from
+  const setTab    = v=>{ setTabRaw(v); if (v!=="goals") { setReturnTab(null); setCalPopDay(null); } };
+  const goBack    = () => { setTabRaw(returnTab); setReturnTab(null); };   // keeps calPopDay → day pop-up reopens
   const setIsDark = v=>{ setIsDarkRaw(v); localStorage.setItem("sb_dark",String(v)); };
   const setLang   = v=>{ setLangRaw(v);   localStorage.setItem("sb_lang",v); };
   const setSavingsTarget = v=>{ setSavingsTargetRaw(v); localStorage.setItem("sb_savings_target",String(v)); };
@@ -100,7 +106,8 @@ function SecondBrain({ session }) {
 
   // Open a specific goal from Calendar / Today
   const [focusGoalId, setFocusGoalId] = useState(null);
-  const openGoal = (id) => { setFocusGoalId(id); setTab("goals"); };
+  // ctx.popDay → reopen that Calendar day pop-up on the way back
+  const openGoal = (id, ctx) => { const from = tab; setFocusGoalId(id); setTab("goals"); if (from!=="goals") setReturnTab(from); setCalPopDay(ctx?.popDay || null); };
 
   // Shared toast with an optional action (undo delete / go to tab)
   const [toast, setToast] = useState(null);
@@ -128,9 +135,10 @@ function SecondBrain({ session }) {
 
   function runToastAction() {
     const a = toast?.action; if (!a) return;
-    if (a.kind==="restoreGoal" || a.kind==="restoreNote") {
+    if (a.kind==="restoreGoal" || a.kind==="restoreNote" || a.kind==="restoreEvent") {
       const item = { ...a.item, id:Date.now() }; delete item.createdAt;   // re-inserted as a new row
       if (a.kind==="restoreGoal") setGoalsView([...goalsView, item]);
+      else if (a.kind==="restoreEvent") setEvents([...events, item]);
       else setNotes([item, ...notes]);
     } else if (a.kind==="goto") setTab(a.tab);
     clearTimeout(toastTimer.current); setToast(null);
@@ -153,7 +161,7 @@ function SecondBrain({ session }) {
         .note-card:hover { transform:translateY(-2px); }
         /* Desktop tabs: hover on the inactive ones */
         .desk-tab svg { transition:transform 0.25s cubic-bezier(.2,.8,.2,1), color 0.2s; }
-        .desk-tab:not(.active):hover { color:${theme.text} !important; background:${isDark?"#0e182980":"#ffffff99"} !important; border-color:${theme.borderStrong} !important; border-bottom-color:${theme.border} !important; }
+        .desk-tab:not(.active):hover { color:${theme.text} !important; background:${isDark?"#0e182980":"#f5f7fa99"} !important; border-color:${theme.borderStrong} !important; border-bottom-color:${theme.border} !important; }
         .desk-tab:not(.active):hover svg { color:#60a5fa; transform:translateY(-1px) scale(1.08); }
         .desk-tab.active svg { color:#60a5fa; }
         /* Today cards: accent-coloured section icon */
@@ -161,7 +169,9 @@ function SecondBrain({ session }) {
         /* Soft lift for whisper notes and Today cards */
         .lift-card { transition:transform 0.3s cubic-bezier(.2,.8,.2,1), box-shadow 0.3s ease, border-color 0.3s ease, opacity 0.2s !important; }
         .lift-card:hover { transform:translateY(-2px); border-color:${isDark?"#3b82f655":"#93c5fd"} !important; box-shadow:0 1px 2px rgba(0,0,0,${isDark?0.3:0.05}), 0 14px 32px -14px ${isDark?"rgba(59,130,246,0.35)":"rgba(37,99,235,0.25)"} !important; }
-        .lift-card .note-actions { opacity:0.55; transition:opacity 0.2s; } .lift-card:hover .note-actions { opacity:1; }
+        .lift-card .note-actions { opacity:0.45; transition:opacity 0.2s; } .lift-card:hover .note-actions { opacity:1; }
+        .na-btn { transition:color 0.15s, background-color 0.15s; } .na-btn:hover { color:${theme.text} !important; background:${theme.input} !important; }
+        .na-btn.na-del:hover { color:#f87171 !important; }
         @media (hover:none) { .lift-card .note-actions { opacity:1; } }
         .del-btn { opacity:0; transition:opacity 0.15s; } .goal-card:hover .del-btn { opacity:1; }
         .row-action { opacity:0.35; transition:opacity 0.15s; } .txn-row:hover .row-action, .row-action:focus-visible { opacity:1; }
@@ -170,6 +180,18 @@ function SecondBrain({ session }) {
         @media (max-width:900px) {
           .cal-layout { display:flex !important; flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch; }
           .cal-col    { overflow:visible !important; min-height:auto !important; flex-shrink:0; }
+          .cal-main   { min-height:auto !important; }
+          /* Whisperer filters: one sideways-scrolling line */
+          .wh-filters { flex-wrap:nowrap !important; overflow-x:auto; scrollbar-width:none; }
+          .wh-filters > * { flex-shrink:0; }
+          .wh-filters::-webkit-scrollbar { display:none; }
+          .cal-month  { grid-template-rows:none !important; grid-auto-rows:minmax(58px,auto); flex:none !important; }
+          .cal-month-wrap, .cal-week { flex:none !important; }
+          .cal-week   { grid-template-columns:1fr !important; }
+          .cal-week-day { flex-direction:row !important; align-items:flex-start; gap:10px !important; overflow:visible !important; }
+          .cal-week-head { flex-direction:column; align-items:center !important; gap:0 !important; width:40px; flex-shrink:0; margin:0 !important; }
+          .cal-year   { grid-template-columns:repeat(2,minmax(0,1fr)) !important; overflow:visible !important; flex:none !important; }
+          .cal-views  { width:100%; margin-left:0 !important; }
         }
         /* Budget: stat cards react on hover; add/edit form is one row on wide screens */
         .stat-card { transition:transform 0.35s cubic-bezier(.2,.8,.2,1), box-shadow 0.35s ease, border-color 0.35s ease, background-color 0.35s ease; will-change:transform; }
@@ -199,6 +221,18 @@ function SecondBrain({ session }) {
         input:focus,textarea:focus { border-color:#3b82f6 !important; }
         .auth-input:focus { border-color:#60a5fa !important; }
         textarea { resize:none; } button { cursor:pointer; }
+        .cal-ev { transition:background-color 0.2s ease, border-color 0.2s ease; }
+        .cal-ev:hover { background-color:${theme.input} !important; }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes fadeOut { from{opacity:1} to{opacity:0} }
+        /* Modal backdrops: the blur fades with the dimming (removing a full blur at once re-renders the page behind) */
+        @keyframes dimIn  { from{opacity:0;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0)} to{opacity:1;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)} }
+        @keyframes dimOut { from{opacity:1;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)} to{opacity:0;backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0)} }
+        /* translate + fade only: scaling makes text re-render (sharpen) at the end of the animation */
+        @keyframes popIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes popOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(10px)} }
+        /* Every tab fades in when it opens (opacity only, so fixed pop-ups inside keep working) */
+        .cpad > * { animation:fadeIn 0.24s ease backwards; }
         @keyframes skPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
@@ -297,12 +331,12 @@ function SecondBrain({ session }) {
       <div className="cpad" style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
         {/* First load with nothing cached yet: pulsing placeholders instead of an empty page */}
         {showSkeleton && <SkeletonGrid theme={theme}/>}
-        {!showSkeleton && tab==="today"     && <TodayTab     theme={theme} lang={lang} goals={goalsView} notes={notes} txns={txns} savingsTarget={savingsTarget} displayName={session.user.user_metadata?.display_name} setTab={setTab} openGoal={openGoal}/>}
-        {!showSkeleton && tab==="goals"     && <GoalsTab     theme={theme} isDark={isDark} lang={lang} goals={goalsView} setGoals={setGoalsView} notify={notify} focusGoalId={focusGoalId} onFocusHandled={()=>setFocusGoalId(null)}/>}
+        {!showSkeleton && tab==="today"     && <TodayTab     theme={theme} lang={lang} events={events} goals={goalsView} notes={notes} txns={txns} savingsTarget={savingsTarget} displayName={session.user.user_metadata?.display_name} setTab={setTab} openGoal={openGoal}/>}
+        {!showSkeleton && tab==="goals"     && <GoalsTab     theme={theme} isDark={isDark} lang={lang} goals={goalsView} setGoals={setGoalsView} notify={notify} onBack={returnTab ? goBack : null} focusGoalId={focusGoalId} onFocusHandled={()=>setFocusGoalId(null)}/>}
         {!showSkeleton && tab==="whisperer" && <WhispererTab theme={theme} isDark={isDark} lang={lang} notes={notes} setNotes={setNotes} goals={goalsView} setGoals={setGoalsView} notify={notify}/>}
         {!showSkeleton && tab==="budget"    && <BudgetTab    theme={theme} isDark={isDark} lang={lang} txns={txns} setTxns={setTxns} savingsTarget={savingsTarget} setSavingsTarget={setSavingsTarget}/>}
-        {!showSkeleton && tab==="calendar"  && <CalendarTab  theme={theme} isDark={isDark} lang={lang} goals={goalsView} txns={txns} openGoal={openGoal}/>}
-        {tab==="profile"   && <ProfileTab   theme={theme} isDark={isDark} lang={lang} session={session} setLang={setLang} setIsDark={setIsDark} savingsTarget={savingsTarget} setSavingsTarget={setSavingsTarget} goals={goals} notes={notes} txns={txns}/>}
+        {!showSkeleton && tab==="calendar"  && <CalendarTab  setGoals={setGoalsView} reopenDay={calPopDay} onReopened={()=>setCalPopDay(null)} theme={theme} isDark={isDark} lang={lang} events={events} setEvents={setEvents} notify={notify} goals={goalsView} txns={txns} openGoal={openGoal}/>}
+        {tab==="profile"   && <ProfileTab   theme={theme} isDark={isDark} lang={lang} events={events} session={session} setLang={setLang} setIsDark={setIsDark} savingsTarget={savingsTarget} setSavingsTarget={setSavingsTarget} goals={goals} notes={notes} txns={txns}/>}
       </div>
 
       {/* Shared toast (undo / go to) */}
