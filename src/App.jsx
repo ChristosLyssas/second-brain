@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { auth, goalsDB, notesDB, txnsDB, eventsDB, isRecoveryLink } from "./lib/supabase";
 import { T } from "./lib/i18n";
 import { Icon } from "./components/Icon";
-import { fz, DARK, LIGHT, isSaving, UI_FONT } from "./lib/helpers";
+import { fz, DARK, LIGHT, isSaving, UI_FONT, lsGet, lsSet } from "./lib/helpers";
 import AuthScreen from "./AuthScreen";
 import GoalsTab from "./tabs/GoalsTab";
 import CalendarTab from "./tabs/CalendarTab";
@@ -11,6 +11,7 @@ import BudgetTab from "./tabs/BudgetTab";
 import TodayTab from "./tabs/TodayTab";
 import ProfileTab from "./tabs/ProfileTab";
 import { SkeletonGrid } from "./components/ui";
+import Onboarding from "./components/Onboarding";
 
 let Analytics = () => null;
 try { const mod = await import("@vercel/analytics/react").catch(()=>null); if(mod) Analytics=mod.Analytics; } catch {}
@@ -75,7 +76,7 @@ function SecondBrain({ session }) {
   // Goal opened from Calendar/Today → its ✕ returns there (forgotten as soon as you switch tabs yourself)
   const [returnTab, setReturnTab] = useState(null);
   const [calPopDay, setCalPopDay] = useState(null);   // the Calendar day pop-up a goal was opened from
-  const setTab    = v=>{ setTabRaw(v); if (v!=="goals") { setReturnTab(null); setCalPopDay(null); } };
+  const setTab    = v=>{ setTabRaw(v); setSwipeIn(null); if (v!=="goals") { setReturnTab(null); setCalPopDay(null); } };
   const goBack    = () => { setTabRaw(returnTab); setReturnTab(null); };   // keeps calPopDay → day pop-up reopens
   const setIsDark = v=>{ setIsDarkRaw(v); localStorage.setItem("sb_dark",String(v)); };
   const setLang   = v=>{ setLangRaw(v);   localStorage.setItem("sb_lang",v); };
@@ -84,8 +85,49 @@ function SecondBrain({ session }) {
   const theme = isDark ? DARK : LIGHT;
   const t = T[lang];
   const isLoading = goalsLoading||notesLoading||txnsLoading;
+  // Welcome tour: once for a brand-new account (no data yet) on this device, or on demand from Profile
+  const [tourSeen] = useState(()=>lsGet("sb_tour_done", "")==="1");
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourClosed, setTourClosed] = useState(false);
+  const showTour = tourOpen || (!tourSeen && !tourClosed && !isLoading && !goals.length && !notes.length && !txns.length);
+  const closeTour = () => { setTourOpen(false); setTourClosed(true); lsSet("sb_tour_done", "1"); };
   const showSkeleton = isLoading && tab!=="profile" && !goals.length && !notes.length && !txns.length;
-  const TABS = ["today","goals","whisperer","budget","calendar"];
+  // Tabs: Today first and Me last are fixed; the ones in between can be reordered / hidden in Profile.
+  // Saved on the account (user_metadata), so it's the same on every device.
+  const MID_TABS = ["goals","whisperer","budget","calendar"];
+  const normTabs = (p={}) => {
+    const order = (Array.isArray(p.order) ? p.order : []).filter(id=>MID_TABS.includes(id));
+    return { order:[...order, ...MID_TABS.filter(id=>!order.includes(id))], hidden:(Array.isArray(p.hidden) ? p.hidden : []).filter(id=>MID_TABS.includes(id)) };
+  };
+  const [tabPrefs, setTabPrefsRaw] = useState(()=>normTabs({ order:session.user.user_metadata?.tab_order, hidden:session.user.user_metadata?.tab_hidden }));
+  const setTabPrefs = (p) => {
+    const next = normTabs(p);
+    setTabPrefsRaw(next);
+    if (next.hidden.includes(tab)) setTab("today");
+    auth.savePrefs({ tab_order:next.order, tab_hidden:next.hidden }).catch(console.error);
+  };
+  const TABS = ["today", ...tabPrefs.order.filter(id=>!tabPrefs.hidden.includes(id))];
+
+  // Phones: swipe left/right on the content to move between tabs. Ignored when the swipe starts on
+  // something that scrolls sideways, a text field, a pop-up, or a box being dragged in Today → Layout.
+  const swipe = useRef(null);
+  const [swipeIn, setSwipeIn] = useState(null);   // { tab, dir:"next"|"prev" } → that tab slides in from the side
+  const NO_SWIPE = "input,textarea,select,[contenteditable],[role=dialog],.txn-chips,.wh-filters,.cal-views,.today-editing,.goal-detail,.no-swipe";
+  const onSwipeStart = (e) => {
+    if (e.touches.length!==1 || !window.matchMedia("(max-width:640px)").matches || e.target.closest(NO_SWIPE)) { swipe.current = null; return; }
+    swipe.current = { x:e.touches[0].clientX, y:e.touches[0].clientY, t:Date.now() };
+  };
+  const onSwipeEnd = (e) => {
+    const s0 = swipe.current; swipe.current = null;
+    if (!s0 || document.body.dataset.dragging) return;   // a note / box was being dragged
+    const dx = e.changedTouches[0].clientX - s0.x, dy = e.changedTouches[0].clientY - s0.y;
+    if (Date.now()-s0.t > 600 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy)*1.8) return;   // a scroll, not a swipe
+    const order = [...TABS, "profile"];   // same order as the bottom bar (… Calendar, Me)
+    const i = order.indexOf(tab); if (i<0) return;
+    const next = order[i + (dx<0 ? 1 : -1)]; if (!next) return;
+    setTab(next);
+    setSwipeIn({ tab:next, dir: dx<0 ? "next" : "prev" });   // after setTab, which clears it for taps
+  };
 
   // ── Finance goals with a target amount track total savings ──────────────────
   // goalsView adds a computed progress + savedSoFar for display; setGoalsView strips them again
@@ -222,6 +264,16 @@ function SecondBrain({ session }) {
         .auth-input:focus { border-color:#60a5fa !important; }
         textarea { resize:none; } button { cursor:pointer; }
         .cal-ev { transition:background-color 0.2s ease, border-color 0.2s ease; }
+        /* Today → Layout: holding a box must grab the box, not select its text (Android/iOS long-press menu) */
+        .today-editing, .today-editing * { user-select:none !important; -webkit-user-select:none !important; -webkit-touch-callout:none !important; }
+        /* Whisperer on touch screens: holding a note picks it up (edit it to copy its text) */
+        /* Touch screens behave like a native app: a long press never selects text (it picks up notes / boxes),
+           except inside text fields. Otherwise Android selects the nearest selectable text, e.g. the bottom bar.
+           (pointer:coarse also catches touch screens that claim hover support, e.g. many Samsung phones) */
+        @media (hover:none), (pointer:coarse) {
+          body, body * { user-select:none !important; -webkit-user-select:none !important; -webkit-touch-callout:none !important; }
+          input, textarea, [contenteditable="true"] { user-select:text !important; -webkit-user-select:text !important; -webkit-touch-callout:default !important; }
+        }
         .cal-ev:hover { background-color:${theme.input} !important; }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes fadeOut { from{opacity:1} to{opacity:0} }
@@ -233,6 +285,11 @@ function SecondBrain({ session }) {
         @keyframes popOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(10px)} }
         /* Every tab fades in when it opens (opacity only, so fixed pop-ups inside keep working) */
         .cpad > * { animation:fadeIn 0.24s ease backwards; }
+        /* after a swipe, the new tab slides in from the side you swiped towards */
+        @keyframes tabFromRight { from{opacity:0;transform:translateX(28px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes tabFromLeft  { from{opacity:0;transform:translateX(-28px)} to{opacity:1;transform:translateX(0)} }
+        .cpad.swipe-next > * { animation:tabFromRight 0.26s cubic-bezier(.2,.8,.2,1) backwards; }
+        .cpad.swipe-prev > * { animation:tabFromLeft 0.26s cubic-bezier(.2,.8,.2,1) backwards; }
         @keyframes skPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
@@ -260,6 +317,7 @@ function SecondBrain({ session }) {
           /* nowrap matters: a wrapping column sizes its line to the widest child (all chips) → overflow */
           .txn-toolbar    { flex-direction:column; flex-wrap:nowrap !important; align-items:stretch !important; gap:8px !important; min-width:0; max-width:100%; }
           .txn-chips      { flex-wrap:nowrap !important; overflow-x:auto; scrollbar-width:none; min-width:0; max-width:100%; }
+          .txn-chips::-webkit-scrollbar { display:none; }   /* older Android browsers ignore scrollbar-width */
           .txn-chips > *  { flex-shrink:0; }
           /* centred when they fit; auto margins (unlike justify-content:center) never cut off the first chip when they overflow */
           .txn-chips > :first-child { margin-left:auto; }
@@ -328,7 +386,7 @@ function SecondBrain({ session }) {
       </div>
 
       {/* ── CONTENT ── */}
-      <div className="cpad" style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+      <div className={`cpad${swipeIn?.tab===tab ? ` swipe-${swipeIn.dir}` : ""}`} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd} style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
         {/* First load with nothing cached yet: pulsing placeholders instead of an empty page */}
         {showSkeleton && <SkeletonGrid theme={theme}/>}
         {!showSkeleton && tab==="today"     && <TodayTab     theme={theme} lang={lang} events={events} goals={goalsView} notes={notes} txns={txns} savingsTarget={savingsTarget} displayName={session.user.user_metadata?.display_name} setTab={setTab} openGoal={openGoal}/>}
@@ -336,8 +394,10 @@ function SecondBrain({ session }) {
         {!showSkeleton && tab==="whisperer" && <WhispererTab theme={theme} isDark={isDark} lang={lang} notes={notes} setNotes={setNotes} goals={goalsView} setGoals={setGoalsView} notify={notify}/>}
         {!showSkeleton && tab==="budget"    && <BudgetTab    theme={theme} isDark={isDark} lang={lang} txns={txns} setTxns={setTxns} savingsTarget={savingsTarget} setSavingsTarget={setSavingsTarget}/>}
         {!showSkeleton && tab==="calendar"  && <CalendarTab  setGoals={setGoalsView} reopenDay={calPopDay} onReopened={()=>setCalPopDay(null)} theme={theme} isDark={isDark} lang={lang} events={events} setEvents={setEvents} notify={notify} goals={goalsView} txns={txns} openGoal={openGoal}/>}
-        {tab==="profile"   && <ProfileTab   theme={theme} isDark={isDark} lang={lang} events={events} session={session} setLang={setLang} setIsDark={setIsDark} savingsTarget={savingsTarget} setSavingsTarget={setSavingsTarget} goals={goals} notes={notes} txns={txns}/>}
+        {tab==="profile"   && <ProfileTab   tabPrefs={tabPrefs} setTabPrefs={setTabPrefs} midTabs={MID_TABS} onReplayTour={()=>setTourOpen(true)} theme={theme} isDark={isDark} lang={lang} events={events} session={session} setLang={setLang} setIsDark={setIsDark} savingsTarget={savingsTarget} setSavingsTarget={setSavingsTarget} goals={goals} notes={notes} txns={txns}/>}
       </div>
+
+      {showTour && <Onboarding theme={theme} lang={lang} onClose={closeTour}/>}
 
       {/* Shared toast (undo / go to) */}
       {toast && (

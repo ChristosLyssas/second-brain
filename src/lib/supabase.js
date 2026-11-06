@@ -33,6 +33,9 @@ export const auth = {
 
   updatePassword: (password) => supabase.auth.updateUser({ password }),
 
+  // Small per-user preferences kept on the account (synced across devices, no table needed)
+  savePrefs: (data) => supabase.auth.updateUser({ data }),
+
   getSession: () => supabase.auth.getSession(),
 
   onAuthStateChange: (cb) => supabase.auth.onAuthStateChange(cb),

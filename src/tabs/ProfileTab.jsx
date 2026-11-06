@@ -5,7 +5,7 @@ import { Icon } from "../components/Icon";
 import { fz, isSaving, toISO, parseTxnDate, downloadFile } from "../lib/helpers";
 
 // ─── PROFILE TAB ──────────────────────────────────────────────────────────────
-export default function ProfileTab({ events=[], theme, isDark, lang, session, setLang, setIsDark, savingsTarget, setSavingsTarget, goals, notes, txns }) {
+export default function ProfileTab({ tabPrefs, setTabPrefs, midTabs=[], onReplayTour, events=[], theme, isDark, lang, session, setLang, setIsDark, savingsTarget, setSavingsTarget, goals, notes, txns }) {
   const t = T[lang];
   const [displayName, setDisplayName] = useState(session.user.user_metadata?.display_name||"");
   const [avatarUrl, setAvatarUrl] = useState(session.user.user_metadata?.avatar_url||"");
@@ -37,6 +37,36 @@ export default function ProfileTab({ events=[], theme, isDark, lang, session, se
     try { Object.keys(localStorage).filter(k=>k.startsWith("sb_")).forEach(k=>localStorage.removeItem(k)); } catch { /* storage blocked */ }
     await supabase.auth.signOut({ scope:"local" });
   }
+
+  // ── Tabs: drag by the handle (mouse or touch) to reorder, eye to hide ──
+  const [tabDraft, setTabDraft] = useState(null);   // order while dragging (saved on release)
+  const tabDrag = useRef(null);
+  const tabListRef = useRef(null);
+  const tabOrder = tabDraft || tabPrefs?.order || midTabs;
+  const onGripDown = (e, id) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); tabDrag.current = id; setTabDraft(tabOrder); };
+  const onGripMove = (e) => {
+    const id = tabDrag.current; if (!id || !tabListRef.current) return;
+    const others = [...tabListRef.current.querySelectorAll("[data-tabrow]")].filter(r=>r.dataset.tabrow!==id);
+    const idx = others.filter(r=>{ const b=r.getBoundingClientRect(); return b.top + b.height/2 < e.clientY; }).length;
+    const order = others.map(r=>r.dataset.tabrow); order.splice(idx, 0, id);
+    if (order.join()!==tabOrder.join()) setTabDraft(order);
+  };
+  const onGripUp = () => {
+    if (!tabDrag.current) return;
+    tabDrag.current = null;
+    if (tabDraft && tabDraft.join()!==(tabPrefs?.order||[]).join()) setTabPrefs({ ...tabPrefs, order:tabDraft });
+    setTabDraft(null);
+  };
+  const moveTab = (id, dir) => {
+    const order = [...tabOrder], i = order.indexOf(id), j = i + dir;
+    if (j<0 || j>=order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    setTabPrefs({ ...tabPrefs, order });
+  };
+  const toggleTab = (id) => {
+    const hidden = tabPrefs.hidden.includes(id) ? tabPrefs.hidden.filter(x=>x!==id) : [...tabPrefs.hidden, id];
+    setTabPrefs({ ...tabPrefs, hidden });
+  };
 
   const [targetDraft, setTargetDraft] = useState(String(savingsTarget));
   const commitTarget = () => { const v=Math.max(1, Math.min(100, parseInt(targetDraft)||20)); setSavingsTarget(v); setTargetDraft(String(v)); };
@@ -132,6 +162,35 @@ export default function ProfileTab({ events=[], theme, isDark, lang, session, se
               <span style={{ color:theme.textMuted }}>%</span>
             </div>
           ))}
+          {/* Tabs: order + visibility */}
+          {tabPrefs && (
+            <div style={{ borderTop:`1px solid ${theme.border}`, paddingTop:14, display:"flex", flexDirection:"column", gap:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ ...labelStyle, flex:1 }}><Icon name="list" size={13}/> {t.tabsTitle}</div>
+                <button onClick={()=>setTabPrefs({ order:midTabs, hidden:[] })} style={{ background:"none", border:"none", color:theme.textMuted, fontSize:fz(12), fontFamily:"inherit", cursor:"pointer", padding:"2px 4px" }}>{t.resetTabs}</button>
+              </div>
+              <div style={{ fontSize:fz(12), color:theme.textMuted, lineHeight:1.5 }}>{t.tabsHint} {t.tabsFixed}</div>
+              <div ref={tabListRef} onPointerMove={onGripMove} onPointerUp={onGripUp} onPointerCancel={onGripUp} style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {tabOrder.map((id,i)=>{
+                  const hidden = tabPrefs.hidden.includes(id), dragging = tabDrag.current===id && !!tabDraft;
+                  const small = { background:"none", border:"none", color:theme.textMuted, padding:6, display:"inline-flex", cursor:"pointer", borderRadius:6 };
+                  return (
+                    <div key={id} data-tabrow={id}
+                      style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 8px", background:theme.input, border:`1px solid ${dragging?"#60a5fa":theme.border}`, borderRadius:10,
+                        opacity:hidden?0.5:1, boxShadow:dragging?"0 8px 20px rgba(0,0,0,0.25)":"none", transition:"opacity 0.2s, border-color 0.15s, box-shadow 0.15s", userSelect:"none" }}>
+                      <span onPointerDown={e=>onGripDown(e, id)} aria-label="drag" title={t.tabsHint}
+                        style={{ display:"inline-flex", padding:"4px 2px", color:theme.textMuted, cursor:"grab", touchAction:"none" }}><Icon name="grip" size={16}/></span>
+                      <Icon name={id} size={16} style={{ color:hidden?theme.textMuted:"#60a5fa" }}/>
+                      <span style={{ flex:1, minWidth:0, fontSize:fz(14), color:theme.text, textDecoration:hidden?"line-through":"none" }}>{t.tabs[id]}</span>
+                      <button onClick={()=>moveTab(id,-1)} disabled={i===0} aria-label={t.moveUp} style={{ ...small, opacity:i===0?0.3:1 }}><Icon name="up" size={15}/></button>
+                      <button onClick={()=>moveTab(id, 1)} disabled={i===tabOrder.length-1} aria-label={t.moveDown} style={{ ...small, opacity:i===tabOrder.length-1?0.3:1 }}><Icon name="down" size={15}/></button>
+                      <button onClick={()=>toggleTab(id)} aria-label={hidden?t.showSection:t.hideSection} title={hidden?t.showSection:t.hideSection} style={{ ...small, color:hidden?theme.textMuted:theme.text }}><Icon name={hidden?"eyeOff":"eye"} size={16}/></button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div style={{ borderTop:`1px solid ${theme.border}`, paddingTop:14, display:"flex", flexDirection:"column", gap:10 }}>
             <div style={labelStyle}><Icon name="download" size={13}/> {t.exportTitle}</div>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -140,6 +199,9 @@ export default function ProfileTab({ events=[], theme, isDark, lang, session, se
               ))}
             </div>
           </div>
+          <button onClick={onReplayTour} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"10px 12px", background:"transparent", border:`1px solid ${theme.border}`, borderRadius:10, color:"#60a5fa", fontSize:fz(13), fontFamily:"inherit", fontWeight:600, cursor:"pointer" }}>
+            <Icon name="idea" size={15}/>{t.replayTour}
+          </button>
         </div>
 
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>

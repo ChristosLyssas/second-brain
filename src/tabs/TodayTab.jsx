@@ -71,7 +71,7 @@ export default function TodayTab({ events=[], theme, lang, goals, notes, txns, s
     if (!editing || e.touches.length!==1 || e.target.closest("button")) return;
     const { clientX:x0, clientY:y0 } = e.touches[0];
     const t0 = { id, x0, y0, active:false };
-    t0.timer = setTimeout(()=>{ t0.active = true; navigator.vibrate?.(15); setDragId(id); setTouchDrag({ id, dx:0, dy:0 }); }, 300);
+    t0.timer = setTimeout(()=>{ t0.active = true; window.getSelection?.()?.removeAllRanges(); navigator.vibrate?.(15); setDragId(id); setTouchDrag({ id, dx:0, dy:0 }); }, 300);
     touch.current = t0;
   };
   useEffect(()=>{
@@ -222,7 +222,7 @@ export default function TodayTab({ events=[], theme, lang, goals, notes, txns, s
   const greetingText = `${gText}${displayName?`, ${displayName}`:""}${isQ ? (lang==="el" ? ";" : "?") : ""}`;
 
   return (
-    <div style={{ height:"100%", minHeight:0, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain", paddingBottom:20 }}>
+    <div className={editing ? "today-editing" : undefined} style={{ height:"100%", minHeight:0, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain", paddingBottom:20 }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:fz(22), fontWeight:500, letterSpacing:"0.01em", lineHeight:1.3, color:theme.text }}>

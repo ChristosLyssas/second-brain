@@ -77,7 +77,18 @@ export const T = {
     eventDate:"Ημερομηνία", allDay:"Ολοήμερο", startTime:"Από", endTime:"Έως", eventLocation:"Τοποθεσία", eventNotes:"Σημειώσεις",
     repeatLabel:"Επανάληψη", repeatOpts:{ none:"Καμία", weekly:"Κάθε εβδομάδα", monthly:"Κάθε μήνα", yearly:"Κάθε χρόνο" },
     colorLabel:"Χρώμα", eventTimeError:"Η λήξη είναι πριν την έναρξη", eventDeleted:"Το συμβάν διαγράφηκε",
-    upcomingEvents:"Επόμενα συμβάντα", noEventsSoon:"Κανένα συμβάν τις επόμενες μέρες", eventsTitle:"Συμβάντα", addToDay:"Προσθήκη συμβάντος", longPressHint:"Πάτα δύο φορές μια μέρα για νέο συμβάν", openDay:"Άνοιγμα ημέρας", openInGoals:"Άνοιγμα στα Goals", calViews:{ day:"Ημέρα", week:"Εβδομάδα", month:"Μήνας", year:"Έτος" },
+    upcomingEvents:"Επόμενα συμβάντα", noEventsSoon:"Κανένα συμβάν τις επόμενες μέρες", eventsTitle:"Συμβάντα", addToDay:"Προσθήκη συμβάντος", longPressHint:"Πάτα δύο φορές μια μέρα για νέο συμβάν", openDay:"Άνοιγμα ημέρας",
+    // Welcome tour
+    tabsTitle:"Καρτέλες", tabsHint:"Σύρε από τη λαβή για να αλλάξεις σειρά. Το μάτι κρύβει μια καρτέλα (τα δεδομένα της μένουν).", resetTabs:"Επαναφορά", tabsFixed:"Το Today μένει πρώτο και το Me τελευταίο.",
+    tourSkip:"Παράλειψη", tourBack:"Πίσω", tourNext:"Επόμενο", tourStart:"Ας ξεκινήσουμε", replayTour:"Δες ξανά τον οδηγό",
+    tour:[
+      { icon:"logo", title:"Καλώς ήρθες στο Second Brain", text:"Στόχοι, σημειώσεις, χρήματα και ημερολόγιο σε ένα μέρος. Δες σε ένα λεπτό πώς δουλεύει." },
+      { icon:"today", title:"Today", text:"Η μέρα σου με μια ματιά: επείγοντα, συμβάντα, χρήματα του μήνα και στόχοι σε εξέλιξη.", tip:"Με το «Layout» αλλάζεις τη σειρά των καρτών." },
+      { icon:"whisperer", title:"Whisperer", text:"Γράψε ό,τι σκεφτείς, γρήγορα. Βάλε #tags, φτιάξε λίστες και καρφίτσωσε ό,τι είναι σημαντικό.", tip:"Γράψε «- [ ]» στην αρχή μιας γραμμής για λίστα με κουτάκια." },
+      { icon:"goals", title:"Goals", text:"Σπάσε κάθε στόχο σε βήματα και η πρόοδος γεμίζει μόνη της. Οι στόχοι Finance ακολουθούν τις αποταμιεύσεις σου.", tip:"Μια σημείωση γίνεται στόχος με ένα πάτημα στο ◎." },
+      { icon:"budget", title:"Budget", text:"Έσοδα, πάγια, έξοδα και αποταμίευση. Βλέπεις πόσα μένουν ελεύθερα κάθε μήνα και πού πάνε τα χρήματα.", tip:"Πάτα μια κάρτα (π.χ. Έξοδα) για να φιλτράρεις τις κινήσεις." },
+      { icon:"calendar", title:"Calendar", text:"Τα συμβάντα σου, οι προθεσμίες των στόχων και οι πληρωμές, σε ημέρα, εβδομάδα, μήνα ή χρόνο.", tip:"Πάτα δύο φορές μια μέρα για νέο συμβάν." },
+    ], openInGoals:"Άνοιγμα στα Goals", calViews:{ day:"Ημέρα", week:"Εβδομάδα", month:"Μήνας", year:"Έτος" },
   },
   en: {
     appTitle:["Second","Brain"], dateLocale:"en-GB",
@@ -155,6 +166,16 @@ export const T = {
     eventDate:"Date", allDay:"All day", startTime:"From", endTime:"To", eventLocation:"Location", eventNotes:"Notes",
     repeatLabel:"Repeat", repeatOpts:{ none:"Never", weekly:"Every week", monthly:"Every month", yearly:"Every year" },
     colorLabel:"Colour", eventTimeError:"End time is before start time", eventDeleted:"Event deleted",
-    upcomingEvents:"Upcoming events", noEventsSoon:"No events in the next few days", eventsTitle:"Events", addToDay:"Add event", longPressHint:"Double-tap a day to add an event", openDay:"Open day", openInGoals:"Open in Goals", calViews:{ day:"Day", week:"Week", month:"Month", year:"Year" },
+    upcomingEvents:"Upcoming events", noEventsSoon:"No events in the next few days", eventsTitle:"Events", addToDay:"Add event", longPressHint:"Double-tap a day to add an event", openDay:"Open day",
+    tabsTitle:"Tabs", tabsHint:"Drag the handle to reorder. The eye hides a tab (its data stays).", resetTabs:"Reset", tabsFixed:"Today stays first and Me last.",
+    tourSkip:"Skip", tourBack:"Back", tourNext:"Next", tourStart:"Let's go", replayTour:"See the guide again",
+    tour:[
+      { icon:"logo", title:"Welcome to Second Brain", text:"Goals, notes, money and calendar in one place. Here's how it works, in a minute." },
+      { icon:"today", title:"Today", text:"Your day at a glance: what's urgent, upcoming events, this month's money and goals in progress.", tip:"Use “Layout” to reorder the cards." },
+      { icon:"whisperer", title:"Whisperer", text:"Capture any thought, fast. Add #tags, make checklists and pin what matters.", tip:"Start a line with “- [ ]” for a checkbox." },
+      { icon:"goals", title:"Goals", text:"Break each goal into steps and progress fills in by itself. Finance goals follow your savings.", tip:"Turn a note into a goal with one tap on ◎." },
+      { icon:"budget", title:"Budget", text:"Income, fixed costs, spending and savings. See what's left to spend each month and where the money goes.", tip:"Tap a card (e.g. Expenses) to filter transactions." },
+      { icon:"calendar", title:"Calendar", text:"Your events, goal deadlines and payments, by day, week, month or year.", tip:"Double-tap a day to add an event." },
+    ], openInGoals:"Open in Goals", calViews:{ day:"Day", week:"Week", month:"Month", year:"Year" },
   },
 };

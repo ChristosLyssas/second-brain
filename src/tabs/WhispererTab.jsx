@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { T } from "../lib/i18n";
-import { tagColor, fz, encodeStep, CHECK_RE, toggleChecklistLine } from "../lib/helpers";
+import { tagColor, fz, encodeStep, CHECK_RE, toggleChecklistLine, lsGet, lsSet } from "../lib/helpers";
 import { NoteBody, EmptyState } from "../components/ui";
 import { Icon } from "../components/Icon";
 
@@ -54,12 +54,75 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
   };
 
   const allTags = [...new Set(notes.flatMap(n=>n.tags.map(cleanTag)).filter(Boolean))];
-  const filtered = notes.filter(n=>{
+
+  // ── Manual order (drag a note onto another). Saved on this device; pinned notes always first,
+  // new notes (not in the saved order yet) on top, newest first.
+  const [noteOrder, setNoteOrderRaw] = useState(()=>{ try { const v = JSON.parse(lsGet("sb_note_order", "[]")); return Array.isArray(v) ? v : []; } catch { return []; } });
+  const setNoteOrder = (ids) => { setNoteOrderRaw(ids); lsSet("sb_note_order", JSON.stringify(ids)); };
+  const rank = new Map(noteOrder.map((id,i)=>[String(id), i]));
+  const sortedNotes = [...notes].sort((a,b)=>
+    (b.pinned - a.pinned) ||
+    ((rank.get(String(a.id)) ?? -1) - (rank.get(String(b.id)) ?? -1)) ||
+    String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  // moving down → after the target, moving up → before it (so the very next note works too)
+  const reorderNotes = (fromId, toId) => {
+    if (fromId==null || toId==null || String(fromId)===String(toId)) return;
+    const ids = sortedNotes.map(n=>String(n.id));
+    const from = ids.indexOf(String(fromId)), to = ids.indexOf(String(toId));
+    if (from<0 || to<0) return;
+    ids.splice(from, 1);
+    ids.splice(ids.indexOf(String(toId)) + (from < to ? 1 : 0), 0, String(fromId));
+    setNoteOrder(ids);
+  };
+
+  // ── Drag: mouse (HTML drag and drop) and touch (hold ~0.35s, then drag) ──
+  const [dragNote, setDragNote] = useState(null);   // { id, dx, dy } while touch-dragging; { id } with the mouse
+  const [overNote, setOverNote] = useState(null);
+  const overRef = useRef(null);
+  const ntouch = useRef(null);   // { id, x0, y0, timer, active }
+  const endNoteTouch = (drop) => {
+    const t0 = ntouch.current; ntouch.current = null;
+    if (t0) clearTimeout(t0.timer);
+    if (drop && t0?.active) reorderNotes(t0.id, overRef.current);
+    document.body.removeAttribute("data-dragging");
+    setDragNote(null); setOverNote(null); overRef.current = null;
+  };
+  const onNoteTouchStart = (e, note) => {
+    if (editingId===note.id || e.touches.length!==1 || e.target.closest("button,input,textarea,a")) return;
+    const { clientX:x0, clientY:y0 } = e.touches[0];
+    const t0 = { id:note.id, x0, y0, active:false };
+    t0.timer = setTimeout(()=>{
+      t0.active = true;
+      document.body.setAttribute("data-dragging", "1");   // tells the tab-swipe gesture to stay out of it
+      window.getSelection?.()?.removeAllRanges();
+      navigator.vibrate?.(15);
+      setDragNote({ id:note.id, dx:0, dy:0 });
+    }, 350);
+    ntouch.current = t0;
+  };
+  useEffect(()=>{
+    const onMove = (e) => {
+      const t0 = ntouch.current; if (!t0) return;
+      const { clientX:x, clientY:y } = e.touches[0];
+      if (!t0.active) { if (Math.hypot(x-t0.x0, y-t0.y0) > 10) endNoteTouch(false); return; }   // a scroll
+      e.preventDefault();
+      setDragNote({ id:t0.id, dx:x-t0.x0, dy:y-t0.y0 });
+      const under = document.elementFromPoint(x, y)?.closest("[data-note]")?.getAttribute("data-note") ?? null;
+      if (under!==overRef.current) { overRef.current = under; setOverNote(under); }
+    };
+    const onEnd = () => { if (ntouch.current) endNoteTouch(true); };
+    window.addEventListener("touchmove", onMove, { passive:false });
+    window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
+    return ()=>{ window.removeEventListener("touchmove", onMove); window.removeEventListener("touchend", onEnd); window.removeEventListener("touchcancel", onEnd); };
+  }); // re-bound each render so it sees the current order
+
+  const filtered = sortedNotes.filter(n=>{
     const content=lang==="el"?n.content:(n.contentEn||n.content);
     const tags=n.tags.map(cleanTag), q=search.toLowerCase().replace(/^#+/,"");
     const ms=!search||content.toLowerCase().includes(search.toLowerCase())||tags.some(tg=>tg.toLowerCase().includes(q));
     return ms&&(!activeTag||tags.includes(activeTag));
-  }).sort((a,b)=>b.pinned-a.pinned);
+  });
 
   // Column count from the list's width: 2 on phones, ~260px per column on bigger screens
   const [listWidth, setListWidth] = useState(0);
@@ -153,7 +216,7 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
       {wide && filters}
 
       {/* Notes (on phones the capture form and filters scroll along with them) */}
-      <div ref={scrollRef} style={{ flex:1, minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain" }}>
+      <div ref={scrollRef} style={{ flex:1, minHeight:0, overflowY:"auto", overflowX:"hidden", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain" }}>
         {!wide && (
           <>
             {/* Slim bar, pinned to the top once the form has scrolled away (0-height sticky → no layout shift) */}
@@ -178,8 +241,21 @@ export default function WhispererTab({ theme, isDark, lang, notes, setNotes, goa
             const editing = editingId===note.id;
             const actBtn = { background:"none", border:"none", cursor:"pointer", color:theme.textMuted, padding:4, display:"inline-flex", borderRadius:6 };
             return (
-            <div key={note.id} className="note-card lift-card"
-              style={{ background:note.pinned?theme.pinBg:theme.surface, border:`1px solid ${note.pinned?theme.pinBorder:theme.border}`, borderRadius:14, padding:narrow?"14px 14px 8px":"16px 18px 10px", position:"relative", boxShadow:note.pinned?`${theme.shadow}, 0 0 28px ${isDark?"#3b82f618":"#60a5fa22"}`:theme.shadow, animation:"fadeUp 0.3s ease backwards", animationDelay:`${Math.min(i,12)*35}ms` }}>
+            <div key={note.id} className={`note-card${dragNote ? "" : " lift-card"}`} data-note={note.id}
+              onTouchStart={e=>onNoteTouchStart(e, note)}
+              onContextMenu={e=>{ if (!editing && window.matchMedia("(pointer:coarse)").matches) e.preventDefault(); }}
+              draggable={!editing}
+              onDragStart={e=>{ setDragNote({ id:note.id }); e.dataTransfer.effectAllowed="move"; }}
+              onDragOver={e=>{ if (!dragNote) return; e.preventDefault(); if (overNote!==String(note.id)) setOverNote(String(note.id)); }}
+              onDrop={e=>{ e.preventDefault(); reorderNotes(dragNote?.id, note.id); setDragNote(null); setOverNote(null); }}
+              onDragEnd={()=>{ setDragNote(null); setOverNote(null); }}
+              style={{ background:note.pinned?theme.pinBg:theme.surface, border:`1px solid ${note.pinned?theme.pinBorder:theme.border}`, borderRadius:14, padding:narrow?"14px 14px 8px":"16px 18px 10px", position:"relative", boxShadow:note.pinned?`${theme.shadow}, 0 0 28px ${isDark?"#3b82f618":"#60a5fa22"}`:theme.shadow, animation:"fadeUp 0.3s ease backwards", animationDelay:`${Math.min(i,12)*35}ms`,
+                ...(overNote===String(note.id) && dragNote && String(dragNote.id)!==String(note.id) ? { outline:"2px solid #60a5fa", outlineOffset:2 } : {}),
+                ...(dragNote && String(dragNote.id)===String(note.id)
+                  ? (dragNote.dx!=null
+                      ? { transform:`translate(${dragNote.dx}px, ${dragNote.dy}px) scale(1.03)`, zIndex:20, pointerEvents:"none", boxShadow:"0 20px 44px rgba(0,0,0,0.4)", opacity:0.95 }
+                      : { opacity:0.4 })
+                  : {}) }}>
               {editing ? (
                 <div onClick={e=>e.stopPropagation()} style={{ paddingBottom:6 }}>
                   <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} rows={5} style={{ ...cs, width:"100%", boxSizing:"border-box", marginBottom:8, lineHeight:1.6, fontSize:fz(14), padding:"10px 12px", resize:"vertical", borderRadius:10 }}/>

@@ -5,7 +5,7 @@ import {
   TriangleAlert, PiggyBank, ListChecks, Trash2, AlarmClock, Coins, TrendingUp, StickyNote,
   ChartPie, ChartNoAxesColumn, List, ClipboardList, CalendarClock, Settings, X, Check,
   House, ShoppingCart, UtensilsCrossed, Car, HeartPulse, Tv, Gamepad2, Package, Briefcase,
-  Eye, EyeOff, Smartphone, ShieldCheck, Lightbulb, Plus, Download,
+  Eye, EyeOff, Smartphone, ShieldCheck, Lightbulb, Plus, Download, GripVertical, ChevronUp, ChevronDown,
 } from "lucide-react";
 
 const ICONS = {
@@ -17,7 +17,7 @@ const ICONS = {
   // section titles
   urgent:AlarmClock, money:Coins, progress:TrendingUp, notes:StickyNote,
   transactions:List, breakdown:ChartPie, donut:ChartPie, bars:ChartNoAxesColumn,
-  deadlines:ClipboardList, upcoming:CalendarClock, settings:Settings, target:Target, account:User, download:Download,
+  deadlines:ClipboardList, upcoming:CalendarClock, settings:Settings, target:Target, account:User, download:Download, grip:GripVertical, up:ChevronUp, down:ChevronDown, list:List,
   moon:Moon, sun:Sun,
   // auth screen
   eye:Eye, eyeOff:EyeOff, phone:Smartphone, shield:ShieldCheck, idea:Lightbulb,

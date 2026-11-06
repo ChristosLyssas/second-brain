@@ -444,6 +444,31 @@ export default function CalendarTab({ theme, isDark, lang, goals, setGoals, txns
   );
 
   // ── DAY: all-day items on top, then an hour list (07:00–23:00, wider if events fall outside) ──
+  // ── Day view timeline ──
+  const ROW = 48;   // px per hour
+  const toMin = (hhmm) => { const [h,m] = String(hhmm).split(":").map(Number); return (h||0)*60 + (m||0); };
+  // Rows run 01:00 … 23:00, then 00:00 last → a start's row index, in minutes from the top
+  const rowMin = (m) => { const h = Math.floor(m/60); return ((h===0 ? 23 : h-1) * 60) + (m % 60); };
+  // Position events and put overlapping ones side by side (lanes)
+  const layoutTimed = (list) => {
+    const items = list.map(ev=>{
+      const s0 = toMin(ev.start), e0 = ev.end ? toMin(ev.end) : s0 + 60;
+      const startY = rowMin(s0), endY = Math.min(24*60, startY + Math.max(15, (e0 > s0 ? e0 : 24*60) - s0));
+      return { ev, startY, endY };
+    }).sort((a,b)=>a.startY-b.startY || b.endY-a.endY);
+    const out = []; let group = [], groupEnd = -1;
+    const flush = () => { const lanes = Math.max(...group.map(g=>g.lane+1)); group.forEach(g=>out.push({ ...g, lanes })); group = []; };
+    for (const it of items) {
+      if (group.length && it.startY >= groupEnd) { flush(); groupEnd = -1; }
+      const used = new Set(group.filter(g=>g.endY > it.startY).map(g=>g.lane));
+      let lane = 0; while (used.has(lane)) lane++;
+      group.push({ ev:it.ev, top:it.startY/60*ROW, height:(it.endY-it.startY)/60*ROW, lane, startY:it.startY, endY:it.endY });
+      groupEnd = Math.max(groupEnd, it.endY);
+    }
+    if (group.length) flush();
+    return out;
+  };
+
   const dayView = () => {
     const { evs, gs, fx } = itemsOn(cursor);
     const timed = evs.filter(ev=>!ev.allDay && ev.start), allDay = evs.filter(ev=>ev.allDay || !ev.start);
@@ -457,15 +482,31 @@ export default function CalendarTab({ theme, isDark, lang, goals, setGoals, txns
             {allDay.map(ev=>eventRow(ev))}{gs.map(goalRow)}{fx.map(fixedRow)}
           </div>
         )}
-        <div style={{ flexShrink:0, background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:12, overflow:"hidden" }}>
+        {/* Timeline: hour rows, with timed events laid over them at their real start and length */}
+        <div style={{ flexShrink:0, position:"relative", background:theme.surface, border:`1px solid ${theme.border}`, borderRadius:12, overflow:"hidden" }}>
           {HOURS.map((h,i)=>{
             const hh = `${String(h).padStart(2,"0")}:00`, key = `${toISO(cursor)}-${h}`;
-            const here = timed.filter(ev=>parseInt(ev.start,10)===h);
             const p = pressable(key, cursor, hh);
             return (
-              <div key={h} data-hour={h} {...p} style={{ ...p.style, display:"flex", gap:10, minHeight:46, padding:"6px 10px", borderTop:i?`1px solid ${theme.border}`:"none", background:"transparent" }}>
+              <div key={h} data-hour={h} {...p} style={{ ...p.style, display:"flex", gap:10, height:ROW, boxSizing:"border-box", padding:"6px 10px", borderTop:i?`1px solid ${theme.border}`:"none", background:"transparent" }}>
                 <div style={{ width:42, flexShrink:0, fontSize:fz(11), color:theme.textMuted, fontFamily:NUM_FONT, paddingTop:2 }}>{hh}</div>
-                <div style={{ flex:1, minWidth:0 }}>{here.map(ev=>eventRow(ev))}</div>
+              </div>
+            );
+          })}
+          {layoutTimed(timed).map(({ ev, top, height, lane, lanes })=>{
+            const c = evColor(ev);
+            return (
+              <div key={ev.id} onClick={()=>openEdit(ev)} className="cal-ev"
+                style={{ position:"absolute", top:top+2, height:Math.max(26, height-4), boxSizing:"border-box",
+                  left:`calc(62px + (100% - 70px) * ${lane} / ${lanes})`, width:`calc((100% - 70px) / ${lanes} - 4px)`,
+                  display:"flex", gap:8, padding:"6px 10px", overflow:"hidden", cursor:"pointer",
+                  background:theme.surface, backgroundImage:`linear-gradient(90deg, ${c}26, ${c}10)`, border:`1px solid ${c}55`, borderLeft:`3px solid ${c}`, borderRadius:8 }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:fz(13), fontWeight:600, color:theme.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ev.title}</div>
+                  {height >= 40 && <div style={{ fontSize:fz(11.5), color:theme.textMuted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    <span style={{ fontFamily:NUM_FONT }}>{timeLabel(ev, t)}</span>{ev.location ? ` · ${ev.location}` : ""}
+                  </div>}
+                </div>
               </div>
             );
           })}
